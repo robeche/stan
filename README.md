@@ -150,70 +150,6 @@ Este proyecto incluye un caso de uso completo con documentación técnica de la 
 - ✅ Sistema funcionando con alta precisión
 - ✅ Listo para integración con LLMs
 
-## 📊 Rendimiento
-
-### Hardware Recomendado
-- **GPU**: NVIDIA RTX 3060+ (opcional, acelera 10-50x)
-- **CPU**: Cualquier procesador moderno
-- **RAM**: 8GB mínimo, 16GB recomendado
-
-### Velocidades Típicas
-| Operación | Sin GPU | Con GPU RTX 5080 |
-|-----------|---------|------------------|
-| Parsing PDF | ~30s | ~30s |
-| Embeddings (24 chunks) | ~5s | ~0.25s |
-| Indexar ChromaDB | ~0.5s | ~0.5s |
-| Query + Reranking | ~2s | ~150ms |
-
-### Precisión
-- **Solo embeddings**: Baseline de precisión
-- **Con reranking**: +15-20% de mejora en relevancia
-- **Con filtros**: +10-15% adicional (depende de metadatos)
-
-## 📦 Estructura del Proyecto
-
-```
-20251223_Norm/
-├── # 🔧 Módulos principales del pipeline
-├── parse_local.py              # Parser PDF → Markdown
-├── document_chunker.py         # Chunking inteligente
-├── embedding_generator.py      # Generación de embeddings
-├── vector_store.py             # ChromaDB wrapper
-├── reranker.py                 # Reranking cross-encoder
-│
-├── # 📝 Scripts de ejemplo y pruebas
-├── ejemplos_chunker.py         # Ejemplos de uso del chunker
-├── ejemplos_embeddings.py      # Ejemplos de embeddings
-├── ejemplos_vector_store.py    # Ejemplos de ChromaDB
-├── ejemplos_reranking.py       # Ejemplos de reranking
-├── test_embeddings_install.py  # Verificar instalación
-│
-├── # 🌐 Aplicación web Django
-├── WebApp/                     # Interfaz web completa
-│   ├── admin_panel/            # Panel de administración
-│   ├── chatbot/                # Interfaz de chatbot
-│   ├── requirements.txt        # Dependencias Django
-│   └── README.md               # Guía de la WebApp
-│
-├── # 📚 Documentación
-├── README.md                   # Este archivo (inicio)
-├── README_MODULE.md            # Parser de documentos
-├── README_CHUNKER.md           # Sistema de chunking
-├── README_EMBEDDINGS.md        # Generación de embeddings
-├── README_VECTORSTORE.md       # Base de datos vectorial
-├── README_RERANKING.md         # Sistema de reranking
-├── SECURITY.md                 # Guía de seguridad
-│
-├── # ⚙️ Configuración
-├── requirements.txt            # Dependencias Python
-├── .env.example                # Plantilla de variables de entorno
-├── .gitignore                  # Archivos ignorados por Git
-│
-├── # 📂 Datos de salida (no incluidos en repo)
-├── output_rag/                 # Embeddings y ChromaDB
-└── output_simple/              # PDFs parseados
-```
-
 ## 🎓 Guías Rápidas
 
 ### Procesar tu Primer Documento
@@ -292,32 +228,6 @@ DocumentChunker(
 )
 ```
 
-## ❓ Preguntas Frecuentes
-
-**¿Necesito GPU obligatoriamente?**  
-No. El sistema funciona en CPU, pero la GPU acelera significativamente los embeddings y reranking (10-50x más rápido).
-
-**¿Puedo procesar documentos en español?**  
-Sí. Los modelos BGE-M3 y BGE-reranker-v2-m3 son multilingües y funcionan bien con español.
-
-**¿Cuántos documentos puedo indexar?**  
-ChromaDB escala a millones de documentos. Para uso típico (miles de fragmentos), funciona perfectamente en una laptop.
-
-**¿Necesito una API key de OpenAI?**  
-No. Los modelos de embeddings y reranking se ejecutan localmente. Solo necesitas API keys si decides integrar GPT u otros LLMs externos para generar respuestas.
-
-**¿Funciona con PDFs escaneados?**  
-El parser Nemotron funciona mejor con PDFs nativos. Para PDFs escaneados, necesitas aplicar OCR previamente.
-
-## 🔐 Seguridad
-
-Este proyecto incluye configuraciones de seguridad para proteger:
-- ✅ Tokens y API keys (excluidos del repositorio)
-- ✅ Modelos ML descargados (no se suben al repo)
-- ✅ Bases de datos generadas (ChromaDB, SQLite)
-- ✅ Documentos procesados y outputs
-
-👉 **Ver [SECURITY.md](SECURITY.md)** para más detalles
 
 ## 📖 Recursos y Referencias
 
@@ -329,14 +239,6 @@ Este proyecto incluye configuraciones de seguridad para proteger:
 - [ChromaDB](https://docs.trychroma.com/) - Base de datos vectorial
 - [Sentence Transformers](https://www.sbert.net/) - Framework de embeddings
 
-## 🤝 Contribuir
-
-Contribuciones bienvenidas! Por favor:
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
 
 ## 📝 Changelog
 
@@ -354,6 +256,3 @@ Este proyecto es de código abierto y está disponible para uso educativo y de i
 
 ---
 
-**💡 ¿Necesitas ayuda?** Revisa la documentación de cada módulo o los scripts de ejemplo en `ejemplos_*.py`
-
-**🚀 ¿Listo para empezar?** Sigue la [Instalación Rápida](#-instalación-rápida) o prueba la [WebApp](WebApp/README.md)
