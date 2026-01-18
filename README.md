@@ -1,10 +1,93 @@
-# Sistema RAG Completo - Documentación
+# 🤖 Sistema RAG Modular
 
-Sistema completo de Retrieval-Augmented Generation (RAG) para procesamiento, indexación y búsqueda de documentos técnicos.
+**Sistema completo de Retrieval-Augmented Generation (RAG)** para procesar, indexar y consultar documentos técnicos de forma inteligente.
 
-## 📚 Índice de Documentación
+## ¿Qué hace este sistema?
 
-### Módulos Principales
+Este proyecto convierte documentos complejos (PDFs, DOCX, etc.) en un sistema de búsqueda semántica inteligente. Permite hacer preguntas en lenguaje natural y obtener respuestas precisas basadas en el contenido de los documentos, indicando siempre las fuentes.
+
+**Flujo completo:**
+1. 📄 **Parsea** documentos PDF → extrae texto, tablas e imágenes
+2. ✂️ **Divide** el contenido en fragmentos semánticos (chunks)
+3. 🧠 **Genera embeddings** (representaciones vectoriales) de cada fragmento
+4. 🗄️ **Indexa** en una base de datos vectorial (ChromaDB)
+5. 🔍 **Busca** fragmentos relevantes para cualquier consulta
+6. 🎯 **Reordena** resultados por relevancia (reranking)
+
+## 🚀 Dos Formas de Usar el Sistema
+
+### **Opción 1: Aplicación Web Django** 🌐
+
+Interfaz gráfica completa con administración de documentos y chatbot.
+
+**Características:**
+- Panel de administración para subir y procesar documentos
+- Chatbot público para hacer preguntas sobre los documentos
+- Procesamiento automático en segundo plano
+- Visualización de fragmentos extraídos, imágenes y tablas
+- Dashboard con estadísticas
+
+**Ideal para:** Uso en producción, múltiples usuarios, interfaz amigable
+
+👉 **[Ver guía completa de la WebApp](WebApp/README.md)**
+
+```bash
+cd WebApp
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+### **Opción 2: Pipeline Manual con Python** 🐍
+
+Usa los módulos directamente en tu código Python para máximo control.
+
+**Ideal para:** Integración personalizada, scripting, notebooks, experimentación
+
+```python
+# Pipeline completo en pocas líneas
+from parse_local import NemotronParser
+from document_chunker import DocumentChunker
+from embedding_generator import EmbeddingGenerator
+from vector_store import VectorStore
+from reranker import Reranker
+
+# 1. Parsear documento
+parser = NemotronParser()
+parser.process_pdf("documento.pdf", "output/doc")
+
+# 2. Dividir en chunks
+chunker = DocumentChunker(chunk_size=2000, overlap=200)
+chunks = chunker.chunk_document("output/doc/documento_concatenado.md")
+
+# 3. Generar embeddings
+generator = EmbeddingGenerator("bge-m3")
+generator.process_chunks_directory("chunks/", "embeddings/")
+
+# 4. Indexar en ChromaDB
+store = VectorStore(persist_directory="chroma_db")
+store.add_embeddings_from_directory("embeddings/")
+
+# 5. Buscar con reranking
+query = "¿Cuáles son las especificaciones técnicas?"
+query_emb = generator.generate_embedding(query)
+results = store.query_by_embedding(query_emb, n_results=20)
+
+reranker = Reranker("bge-reranker-v2-m3")
+final = reranker.rerank_results(query, results, top_k=5)
+
+# Mostrar resultados
+for i, r in enumerate(final, 1):
+    print(f"{i}. {r['id']} (score: {r['rerank_score']:.4f})")
+    print(f"   {r['document'][:100]}...\n")
+```
+
+👉 **Ver ejemplos completos en:** `ejemplos_*.py`
+
+## 📚 Documentación Detallada por Módulo
+
+Cada módulo tiene su propia documentación técnica:
 
 1. **[README_MODULE.md](README_MODULE.md)** - Parser de documentos PDF (Nemotron)
 2. **[README_CHUNKER.md](README_CHUNKER.md)** - Sistema de chunking inteligente
@@ -12,379 +95,265 @@ Sistema completo de Retrieval-Augmented Generation (RAG) para procesamiento, ind
 4. **[README_VECTORSTORE.md](README_VECTORSTORE.md)** - Base de datos vectorial (ChromaDB)
 5. **[README_RERANKING.md](README_RERANKING.md)** - Sistema de reranking (BGE-reranker)
 
-## 🚀 Quick Start
+## 🛠️ Instalación Rápida
 
-### Instalación
+### Requisitos Previos
+- Python 3.11+
+- GPU NVIDIA (opcional, pero recomendado para mejor rendimiento)
+- 8GB+ RAM
+
+### Configuración Básica
 
 ```bash
-# Clonar repositorio
-cd Proyectos/20251223_Norm
+# 1. Clonar el repositorio
+git clone https://github.com/TU-USUARIO/TU-REPO.git
+cd TU-REPO
 
-# Crear entorno virtual
+# 2. Crear entorno virtual
 python -m venv venv
 
-# Activar entorno virtual
-# Windows PowerShell:
+# 3. Activar entorno virtual
+# Windows:
 .\venv\Scripts\Activate.ps1
 # Linux/Mac:
 source venv/bin/activate
 
-# Instalar dependencias
+# 4. Instalar dependencias
 pip install -r requirements.txt
+
+# 5. Configurar variables de entorno (si usas APIs externas)
+cp .env.example .env
+# Editar .env con tus API keys si es necesario
 ```
 
-### Pipeline Completo
+### Verificar Instalación
 
-```python
-# 1. PARSEAR DOCUMENTO PDF
-from nemotron_parser import NemotronParser
-
-parser = NemotronParser()
-parser.process_pdf("documento.pdf", "output_simple/mi_doc")
-# Genera: documento_concatenado.md
-
-# 2. DIVIDIR EN CHUNKS
-from document_chunker import DocumentChunker
-
-chunker = DocumentChunker(
-    chunk_size=2000,
-    overlap=200,
-    strategy="hybrid_semantic"
-)
-chunks = chunker.chunk_document(
-    "output_simple/mi_doc/documento_concatenado.md",
-    output_dir="chunks/"
-)
-# Genera: chunks_json/*.json
-
-# 3. GENERAR EMBEDDINGS
-from embedding_generator import EmbeddingGenerator
-
-generator = EmbeddingGenerator("bge-m3")
-generator.process_chunks_directory(
-    chunks_dir="chunks/",
-    output_dir="embeddings/"
-)
-# Genera: embeddings/*.json + embeddings.npy
-
-# 4. INDEXAR EN CHROMADB
-from vector_store import VectorStore
-
-store = VectorStore(persist_directory="chroma_db")
-store.add_embeddings_from_directory("embeddings/")
-# Crea: chroma_db/
-
-# 5. BUSCAR CON RERANKING
-from reranker import Reranker
-
-reranker = Reranker("bge-reranker-v2-m3")
-
-# Query
-query = "¿Cuáles son las especificaciones de la turbina?"
-query_emb = generator.generate_embedding(query)
-
-# Búsqueda inicial
-results = store.query_by_embedding(query_emb, n_results=20)
-
-# Reranking
-final = reranker.rerank_results(query, results, top_k=5)
-
-# Mostrar resultados
-for i, r in enumerate(final, 1):
-    print(f"{i}. {r['id']} (score: {r['rerank_score']:.4f})")
-    print(f"   {r['document'][:100]}...")
+```bash
+# Test de embeddings
+python test_embeddings_install.py
 ```
+
+## 🎯 Casos de Uso
+
+### ✅ Ideal para:
+- 📚 **Sistemas Q&A** sobre documentación técnica
+- 🔍 **Búsqueda semántica** en corpus grandes
+- 📖 **Asistentes de lectura** de manuales y especificaciones
+- 🎓 **Herramientas educativas** con material extenso
+- 🏢 **Knowledge bases corporativas**
+- 🤝 **Chatbots especializados** en dominios específicos
+
+### Ejemplo Real: Turbina Eólica NREL 5MW
+Este proyecto incluye un caso de uso completo con documentación técnica de la turbina NREL 5MW:
+- ✅ 24 fragmentos de especificaciones técnicas
+- ✅ Búsquedas sobre diseño de palas, torre, capacidad
+- ✅ Sistema funcionando con alta precisión
+- ✅ Listo para integración con LLMs
+
+## 📊 Rendimiento
+
+### Hardware Recomendado
+- **GPU**: NVIDIA RTX 3060+ (opcional, acelera 10-50x)
+- **CPU**: Cualquier procesador moderno
+- **RAM**: 8GB mínimo, 16GB recomendado
+
+### Velocidades Típicas
+| Operación | Sin GPU | Con GPU RTX 5080 |
+|-----------|---------|------------------|
+| Parsing PDF | ~30s | ~30s |
+| Embeddings (24 chunks) | ~5s | ~0.25s |
+| Indexar ChromaDB | ~0.5s | ~0.5s |
+| Query + Reranking | ~2s | ~150ms |
+
+### Precisión
+- **Solo embeddings**: Baseline de precisión
+- **Con reranking**: +15-20% de mejora en relevancia
+- **Con filtros**: +10-15% adicional (depende de metadatos)
 
 ## 📦 Estructura del Proyecto
 
 ```
 20251223_Norm/
-├── # Módulos principales
+├── # 🔧 Módulos principales del pipeline
 ├── parse_local.py              # Parser PDF → Markdown
 ├── document_chunker.py         # Chunking inteligente
-├── embedding_generator.py      # Generación embeddings
+├── embedding_generator.py      # Generación de embeddings
 ├── vector_store.py             # ChromaDB wrapper
 ├── reranker.py                 # Reranking cross-encoder
 │
-├── # Scripts de ejemplo
-├── ejemplos_chunker.py         # Ejemplos de chunking
-├── ejemplos_embeddings.py      # Ejemplos embeddings
-├── ejemplos_vector_store.py    # Ejemplos ChromaDB
-├── ejemplos_reranking.py       # Ejemplos reranking
-│
-├── # Tests
+├── # 📝 Scripts de ejemplo y pruebas
+├── ejemplos_chunker.py         # Ejemplos de uso del chunker
+├── ejemplos_embeddings.py      # Ejemplos de embeddings
+├── ejemplos_vector_store.py    # Ejemplos de ChromaDB
+├── ejemplos_reranking.py       # Ejemplos de reranking
 ├── test_embeddings_install.py  # Verificar instalación
-├── test_embeddings_generated.py # Verificar embeddings
 │
-├── # Documentación
-├── README.md                   # Este archivo
-├── README_MODULE.md            # Doc parser
-├── README_CHUNKER.md           # Doc chunking
-├── README_EMBEDDINGS.md        # Doc embeddings
-├── README_VECTORSTORE.md       # Doc ChromaDB
-├── README_RERANKING.md         # Doc reranking
+├── # 🌐 Aplicación web Django
+├── WebApp/                     # Interfaz web completa
+│   ├── admin_panel/            # Panel de administración
+│   ├── chatbot/                # Interfaz de chatbot
+│   ├── requirements.txt        # Dependencias Django
+│   └── README.md               # Guía de la WebApp
 │
-├── # Outputs
-├── output_simple/              # PDFs parseados
-│   └── NREL5MW_Reduced/
-│       ├── documento_concatenado.md
-│       ├── chunks/             # Chunks markdown
-│       └── chunks_json/        # Chunks JSON
+├── # 📚 Documentación
+├── README.md                   # Este archivo (inicio)
+├── README_MODULE.md            # Parser de documentos
+├── README_CHUNKER.md           # Sistema de chunking
+├── README_EMBEDDINGS.md        # Generación de embeddings
+├── README_VECTORSTORE.md       # Base de datos vectorial
+├── README_RERANKING.md         # Sistema de reranking
+├── SECURITY.md                 # Guía de seguridad
 │
-└── output_rag/                 # Sistema RAG
-    ├── embeddings/             # Embeddings generados
-    │   ├── chunk_*.json
-    │   ├── embeddings.npy
-    │   └── embeddings_metadata.json
-    └── chroma_db/              # Base de datos vectorial
-        └── ...
+├── # ⚙️ Configuración
+├── requirements.txt            # Dependencias Python
+├── .env.example                # Plantilla de variables de entorno
+├── .gitignore                  # Archivos ignorados por Git
+│
+├── # 📂 Datos de salida (no incluidos en repo)
+├── output_rag/                 # Embeddings y ChromaDB
+└── output_simple/              # PDFs parseados
 ```
 
-## 🎯 Características Principales
+## 🎓 Guías Rápidas
 
-### 1. Parser de Documentos
-- 📄 Convierte PDF a Markdown estructurado
-- 🖼️ Extrae figuras y tablas
-- 📊 Mantiene estructura del documento
-- 🎨 Genera visualizaciones con bounding boxes
-
-### 2. Chunking Inteligente
-- ✂️ **3 estrategias**: Fixed, Semantic, Hybrid
-- 🔗 **Overlap configurable** para contexto
-- 📏 **Control de tamaño** adaptativo
-- 📊 **Metadata rica** en cada chunk
-
-### 3. Embeddings
-- 🧠 **BGE-M3**: 1024 dims, multilingüe
-- ⚡ **GPU accelerated** (RTX 5080)
-- 💾 **Múltiples formatos**: JSON, NumPy
-- 🔄 **Normalización** para cosine similarity
-
-### 4. Vector Store
-- 🗄️ **ChromaDB**: Persistente, rápido
-- 🔍 **Búsqueda semántica** avanzada
-- 🎯 **Filtros** por metadata
-- 📊 **Métricas**: Cosine, L2, IP
-
-### 5. Reranking
-- 🎯 **BGE-reranker-v2-m3**: Cross-encoder
-- 📈 **+15-20% precisión** vs solo embeddings
-- 🔄 **Análisis de cambios** de ranking
-- ⚡ **GPU optimized**
-
-## 📊 Performance
-
-### Hardware
-- **GPU**: NVIDIA GeForce RTX 5080
-- **CPU**: Compatible con cualquier sistema
-- **RAM**: 8GB+ recomendado
-
-### Métricas (24 chunks, documento NREL)
-
-| Operación | Tiempo | Observaciones |
-|-----------|--------|---------------|
-| Parsing PDF | ~30s | Por documento |
-| Chunking | <1s | 24 chunks generados |
-| Embeddings | 0.25s | BGE-M3, GPU |
-| Indexar ChromaDB | 0.5s | Primera carga |
-| Query básica | 5-10ms | Top 10 resultados |
-| Query + Reranking | ~150ms | Top 5 refinados |
-
-### Precisión
-
-| Método | Recall@5 | Precision@5 | Observaciones |
-|--------|----------|-------------|---------------|
-| Embeddings solo | Base | Base | Rápido |
-| + Reranking | +15-20% | +15-20% | Más preciso |
-| + Filtros | +10-15% | Variable | Depende filtros |
-
-## 🛠️ Ejemplos de Uso
-
-### Ejemplo 1: Búsqueda simple
+### Procesar tu Primer Documento
 
 ```bash
-# Activar entorno
-.\venv\Scripts\Activate.ps1
-
-# Ejecutar ejemplo de vector store
-python ejemplos_vector_store.py 2
-
-# Output:
-# 🔍 Query: What is the blade design of the wind turbine?
-# 
-# 📊 Resultados encontrados: 3
-# 
-# 1. chunk_0016 (similarity: 0.6468)
-#    ## 3 Blade Aerodynamic Properties...
-```
-
-### Ejemplo 2: Comparar con/sin reranking
-
-```bash
-python ejemplos_reranking.py 1
-
-# Output muestra cambios de ranking:
-# chunk_0008 ↑6 posiciones
-# chunk_0016 ↓4 posiciones
-```
-
-### Ejemplo 3: Pipeline completo
-
-```bash
-# Ver ejemplos/demos/pipeline_rag.py para pipeline integrado
+# Ejecutar ejemplo completo
 python ejemplos_reranking.py 4
+
+# Esto hará:
+# 1. Crear chunks del documento NREL
+# 2. Generar embeddings
+# 3. Indexar en ChromaDB
+# 4. Realizar búsquedas con reranking
 ```
 
-## 🔧 Configuración
+### Usar la WebApp
 
-### Modelos Recomendados
+```bash
+cd WebApp
+python manage.py runserver
 
-```python
-# Embeddings
-EmbeddingGenerator("bge-m3")           # Recomendado: multilingüe, 1024 dims
-EmbeddingGenerator("bge-base")         # Alternativa: inglés, 768 dims
-EmbeddingGenerator("minilm")           # Rápido: 384 dims
-
-# Reranking
-Reranker("bge-reranker-v2-m3")        # Recomendado: multilingüe, max 8K tokens
-Reranker("bge-reranker-base")         # Rápido: inglés, max 512 tokens
-Reranker("ms-marco-small")            # Muy rápido: inglés
+# Acceder a:
+# - Administración: http://localhost:8000/admin/
+# - Chatbot: http://localhost:8000/chat/
 ```
 
-### Parámetros Típicos
+### Integrar en tu Código
 
 ```python
-# Chunking
+# Ejemplo mínimo
+from vector_store import VectorStore
+from embedding_generator import EmbeddingGenerator
+
+# Cargar sistema existente
+store = VectorStore(persist_directory="chroma_db")
+generator = EmbeddingGenerator("bge-m3")
+
+# Hacer una consulta
+query = "tu pregunta aquí"
+query_emb = generator.generate_embedding(query)
+results = store.query_by_embedding(query_emb, n_results=5)
+
+for r in results:
+    print(f"- {r['document'][:100]}...")
+```
+
+## 🔧 Configuración Avanzada
+
+### Modelos Disponibles
+
+**Embeddings:**
+- `bge-m3` - Recomendado: multilingüe, 1024 dims
+- `bge-base` - Inglés, 768 dims, rápido
+- `minilm` - Muy rápido, 384 dims
+
+**Reranking:**
+- `bge-reranker-v2-m3` - Recomendado: multilingüe
+- `bge-reranker-base` - Rápido, inglés
+- `ms-marco-small` - Muy rápido
+
+### Parámetros Recomendados
+
+```python
+# Para documentos técnicos largos
 DocumentChunker(
-    chunk_size=2000,        # 1500-3000 para documentos técnicos
-    overlap=200,            # 10-20% del chunk_size
-    strategy="hybrid_semantic"  # hybrid > semantic > fixed
+    chunk_size=2000,              # Fragmentos medianos
+    overlap=200,                  # 10% de overlap
+    strategy="hybrid_semantic"    # Mejor calidad
 )
 
-# Búsqueda
-store.query_by_embedding(
-    query_embedding=emb,
-    n_results=20,           # 3-5x lo que necesitas finalmente
-    where={"length": {"$gt": 500}}  # Filtros opcionales
-)
-
-# Reranking
-reranker.rerank_results(
-    query=query,
-    search_results=results,
-    top_k=5                 # 3-10 típicamente
+# Para documentos cortos o preguntas específicas
+DocumentChunker(
+    chunk_size=800,
+    overlap=100,
+    strategy="semantic"
 )
 ```
 
-## 📚 Recursos y Referencias
+## ❓ Preguntas Frecuentes
 
-### Papers
-- **BGE**: [C-Pack: Packaged Resources for General Chinese Embeddings](https://arxiv.org/abs/2309.07597)
-- **RAG**: [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)
-- **ChromaDB**: [Chroma Documentation](https://docs.trychroma.com/)
+**¿Necesito GPU obligatoriamente?**  
+No. El sistema funciona en CPU, pero la GPU acelera significativamente los embeddings y reranking (10-50x más rápido).
 
-### Tutoriales
-- [Pinecone RAG Guide](https://www.pinecone.io/learn/retrieval-augmented-generation/)
-- [LangChain RAG Tutorial](https://python.langchain.com/docs/use_cases/question_answering/)
+**¿Puedo procesar documentos en español?**  
+Sí. Los modelos BGE-M3 y BGE-reranker-v2-m3 son multilingües y funcionan bien con español.
 
-### Modelos
-- [BAAI BGE Models](https://huggingface.co/BAAI)
-- [Sentence Transformers](https://www.sbert.net/)
+**¿Cuántos documentos puedo indexar?**  
+ChromaDB escala a millones de documentos. Para uso típico (miles de fragmentos), funciona perfectamente en una laptop.
 
-## 🤝 Casos de Uso
+**¿Necesito una API key de OpenAI?**  
+No. Los modelos de embeddings y reranking se ejecutan localmente. Solo necesitas API keys si decides integrar GPT u otros LLMs externos para generar respuestas.
 
-### ✅ Ideal para:
-- 📚 Sistemas Q&A sobre documentación técnica
-- 🔍 Búsqueda semántica en corpus grandes
-- 📖 Asistentes de lectura de manuales
-- 🎓 Herramientas educativas con material extenso
-- 🏢 Knowledge bases corporativas
+**¿Funciona con PDFs escaneados?**  
+El parser Nemotron funciona mejor con PDFs nativos. Para PDFs escaneados, necesitas aplicar OCR previamente.
 
-### 🎯 Tu caso: NREL 5MW Wind Turbine
-- ✅ 24 chunks de especificaciones técnicas
-- ✅ Búsquedas sobre diseño de palas, torre, capacidad
-- ✅ Sistema funcionando con alta precisión
-- ✅ Listo para integrar con LLM
+## 🔐 Seguridad
 
-## 🚧 Próximos Pasos (Opcional)
+Este proyecto incluye configuraciones de seguridad para proteger:
+- ✅ Tokens y API keys (excluidos del repositorio)
+- ✅ Modelos ML descargados (no se suben al repo)
+- ✅ Bases de datos generadas (ChromaDB, SQLite)
+- ✅ Documentos procesados y outputs
 
-### Integración con LLM
-```python
-# Ejemplo con OpenAI
-import openai
+👉 **Ver [SECURITY.md](SECURITY.md)** para más detalles
 
-# Construir prompt
-context = build_context_from_reranked(final_results)
-prompt = f"""Basándote en el siguiente contexto, responde la pregunta.
+## 📖 Recursos y Referencias
 
-Contexto:
-{context}
+### Papers Técnicos
+- [BGE Embeddings](https://arxiv.org/abs/2309.07597) - Base de los modelos de embeddings
+- [RAG](https://arxiv.org/abs/2005.11401) - Fundamentos de Retrieval-Augmented Generation
 
-Pregunta: {query}
+### Herramientas
+- [ChromaDB](https://docs.trychroma.com/) - Base de datos vectorial
+- [Sentence Transformers](https://www.sbert.net/) - Framework de embeddings
 
-Respuesta:"""
+## 🤝 Contribuir
 
-response = openai.ChatCompletion.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": prompt}]
-)
-
-print(response.choices[0].message.content)
-```
-
-### WebApp con Streamlit
-```python
-import streamlit as st
-
-st.title("Sistema RAG - NREL 5MW Turbine")
-
-query = st.text_input("Haz una pregunta:")
-
-if st.button("Buscar"):
-    # Tu pipeline RAG aquí
-    results = rag_pipeline(query)
-    
-    for r in results:
-        st.write(f"**{r['id']}** (score: {r['score']:.4f})")
-        st.write(r['document'])
-        st.divider()
-```
-
-## ❓ FAQ
-
-**P: ¿Necesito GPU?**  
-R: No es obligatoria, pero acelera 10-50x los embeddings y reranking.
-
-**P: ¿Puedo usar con otros idiomas?**  
-R: Sí, BGE-M3 y BGE-reranker-v2-m3 son multilingües.
-
-**P: ¿Funciona con PDFs escaneados?**  
-R: Sí, pero necesitas OCR previo. Nemotron parser funciona con PDFs nativos.
-
-**P: ¿Cuántos chunks puedo indexar?**  
-R: ChromaDB escala a millones. Con 10K chunks funciona perfectamente en laptop.
-
-**P: ¿Es necesario el reranking?**  
-R: Para <50 chunks no es crítico. Para >100 chunks sí mejora notablemente.
+Contribuciones bienvenidas! Por favor:
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
 ## 📝 Changelog
 
-### v1.0.0 (2026-01-02)
-- ✅ Parser de PDFs con Nemotron
-- ✅ Sistema de chunking con 3 estrategias
-- ✅ Generación de embeddings con BGE-M3
-- ✅ Vector store con ChromaDB
-- ✅ Reranking con BGE-reranker-v2-m3
-- ✅ Documentación completa de todos los módulos
-- ✅ Scripts de ejemplo para cada componente
+### v1.0.0 (Enero 2026)
+- ✅ Sistema RAG completo con 5 módulos
+- ✅ Aplicación web Django con admin panel y chatbot
+- ✅ Procesamiento automático en background (Celery)
+- ✅ Documentación completa de todos los componentes
+- ✅ Scripts de ejemplo para cada módulo
+- ✅ Configuración de seguridad (gitignore, variables de entorno)
 
 ## 📄 Licencia
 
-Este proyecto es para uso educativo y de investigación.
+Este proyecto es de código abierto y está disponible para uso educativo y de investigación.
 
 ---
 
-**Creado**: 2026-01-02  
-**Versión**: 1.0.0  
-**Autor**: Sistema RAG  
-**Contacto**: [Tu contacto aquí]
+**💡 ¿Necesitas ayuda?** Revisa la documentación de cada módulo o los scripts de ejemplo en `ejemplos_*.py`
+
+**🚀 ¿Listo para empezar?** Sigue la [Instalación Rápida](#-instalación-rápida) o prueba la [WebApp](WebApp/README.md)
