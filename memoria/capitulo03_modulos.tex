@@ -1,0 +1,319 @@
+\chapter{Módulos del Sistema}
+%================================================
+
+\section{Admin Panel}
+
+\subsection{Funcionalidad}
+
+El panel de administración proporciona una interfaz completa para gestionar el ciclo de vida de los documentos:
+
+\begin{itemize}
+    \item \textbf{Subida de documentos}: Soporta PDF, DOCX, DOC, TXT, MD
+    \item \textbf{Monitoreo de progreso}: 4 etapas con porcentaje en tiempo real
+    \item \textbf{Visualización de contenido}: Páginas anotadas, imágenes extraídas, tablas
+    \item \textbf{Gestión de chunks}: Exploración de fragmentos indexados
+    \item \textbf{Logs detallados}: Trazabilidad completa del procesamiento
+    \item \textbf{Reprocesamiento}: Reindexar documentos con nuevos parámetros
+\end{itemize}
+
+\subsection{Modelos de Datos}
+
+\begin{lstlisting}[language=Python, caption=Modelo Document]
+class Document(models.Model):
+    title = models.CharField(max_length=500)
+    original_filename = models.CharField(max_length=500)
+    file = models.FileField(upload_to='documents/\%Y/\%m/\%d/')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    progress_percentage = models.IntegerField(default=0)
+    
+    # Procesamiento
+    parsing_completed = models.BooleanField(default=False)
+    chunking_completed = models.BooleanField(default=False)
+    embedding_completed = models.BooleanField(default=False)
+    indexing_completed = models.BooleanField(default=False)
+    
+    # Estadisticas
+    total_pages = models.IntegerField(default=0)
+    total_chunks = models.IntegerField(default=0)
+    total_images = models.IntegerField(default=0)
+    total_tables = models.IntegerField(default=0)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption=Modelo Chunk]
+class Chunk(models.Model):
+    document = models.ForeignKey(Document, on_delete=models.CASCADE)
+    chunk_id = models.CharField(max_length=100)
+    content = models.TextField()
+    chunk_index = models.IntegerField()
+    metadata = models.JSONField(default=dict)
+    
+    # Embedding
+    embedding_vector = models.JSONField(null=True, blank=True)
+    embedding_dimension = models.IntegerField(null=True, blank=True)
+    
+    # ChromaDB
+    chromadb_id = models.CharField(max_length=255)
+    indexed_in_chromadb = models.BooleanField(default=False)
+\end{lstlisting}
+
+\subsection{Tareas Celery}
+
+\begin{lstlisting}[language=Python, caption=Tarea de procesamiento]
+@shared_task(bind=True)
+def process_document_task(self, document_id):
+    # Procesa documento completo en background
+    doc = Document.objects.get(id=document_id)
+    
+    # 1. Parsing (25 porciento)
+    parse_result = parse_document(doc.file.path)
+    update_progress(doc, 25, 'parsing')
+    
+    # 2. Chunking (50 porciento)
+    chunks = chunk_document(parse_result)
+    update_progress(doc, 50, 'chunking')
+    
+    # 3. Embeddings (75 porciento)
+    embeddings = generate_embeddings(chunks)
+    update_progress(doc, 75, 'embedding')
+    
+    # 4. Indexing (100 porciento)
+    index_to_chromadb(chunks, embeddings)
+    update_progress(doc, 100, 'completed')
+\end{lstlisting}
+
+\section{Chatbot}
+
+\subsection{Funcionalidad}
+
+Interfaz conversacional pública que permite:
+
+\begin{itemize}
+    \item \textbf{Consultas en lenguaje natural}: En español o inglés
+    \item \textbf{Respuestas contextuales}: Basadas en los documentos indexados
+    \item \textbf{Referencias visuales}: Tablas e imágenes embebidas automáticamente
+    \item \textbf{Historial de conversación}: Sesiones independientes por usuario
+    \item \textbf{Fuentes citadas}: Muestra los chunks utilizados
+\end{itemize}
+
+\subsection{Modelos de Datos}
+
+\begin{lstlisting}[language=Python, caption=Modelo Conversation]
+class Conversation(models.Model):
+    session_id = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class Message(models.Model):
+    MESSAGE_TYPES = [
+        ('user', 'Usuario'),
+        ('assistant', 'Asistente'),
+    ]
+    conversation = models.ForeignKey(Conversation)
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES)
+    content = models.TextField()
+    retrieved_chunks = models.ManyToManyField('admin_panel.Chunk')
+    created_at = models.DateTimeField(auto_now_add=True)
+\end{lstlisting}
+
+\subsection{Lógica de Respuesta}
+
+\begin{lstlisting}[language=Python, caption=Generación de respuesta]
+def generate_response(query):
+    # 1. Generar embedding de la query
+    query_embedding = embedding_generator.generate_single_embedding(query)
+    
+    # 2. Buscar en ChromaDB
+    results = vector_store.query(
+        query_embedding=query_embedding,
+        n_results=5
+    )
+    
+    # 3. Recuperar chunks
+    chunk_ids = [r['metadata']['chunk_id'] for r in results['results']]
+    chunks = Chunk.objects.filter(chunk_id__in=chunk_ids)
+    
+    # 4. Construir contexto
+    context = build_context(chunks)
+    
+    # 5. Generar respuesta con LLM
+    response = call_ollama(query, context)
+    
+    # 6. Post-procesar (inyectar imagenes)
+    response = inject_media_references(response, chunks)
+    
+    return response, chunks
+\end{lstlisting}
+
+\section{Parsing (Nemotron)}
+
+\subsection{Características}
+
+Utiliza el modelo \texttt{nvidia/NVIDIA-Nemotron-Parse-v1.1} para:
+
+\begin{itemize}
+    \item Extracción de texto con estructura preservada
+    \item Detección y extracción de imágenes con bounding boxes
+    \item Identificación de tablas con metadatos
+    \item Salida en formato Markdown + JSON
+\end{itemize}
+
+\subsection{Configuración}
+
+\begin{lstlisting}[language=Python, caption=Configuración de Nemotron]
+RAG_CONFIG = {
+    'PARSING': {
+        'MODEL': 'nvidia/NVIDIA-Nemotron-Parse-v1.1',
+        'DEVICE': 'cuda' if torch.cuda.is_available() else 'cpu',
+        'BATCH_SIZE': 4,
+        'MAX_LENGTH': 512,
+    }
+}
+\end{lstlisting}
+
+\section{Chunking Semántico}
+
+\subsection{Estrategia}
+
+Implementa chunking basado en contexto semántico:
+
+\begin{itemize}
+    \item \textbf{Tamaño de chunk}: 1200 caracteres
+    \item \textbf{Overlap}: 150 caracteres
+    \item \textbf{Preservación de estructura}: Respeta párrafos y secciones
+    \item \textbf{Metadatos}: Página, sección, documento, índice
+\end{itemize}
+
+\subsection{Implementación}
+
+\begin{lstlisting}[language=Python, caption=Chunking semántico]
+class DocumentChunker:
+    def __init__(self, chunk_size=1200, chunk_overlap=150):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+    
+    def chunk_document(self, text, metadata=None):
+        chunks = []
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            separators=["\n\n", "\n", ". ", " ", ""]
+        )
+        
+        for i, chunk_text in enumerate(splitter.split_text(text)):
+            chunk = {
+                'chunk_id': f'chunk_{i:04d}',
+                'content': chunk_text,
+                'chunk_index': i,
+                'metadata': metadata or {}
+            }
+            chunks.append(chunk)
+        
+        return chunks
+\end{lstlisting}
+
+\section{Embeddings (BGE-M3)}
+
+\subsection{Modelo}
+
+Utiliza \texttt{BAAI/bge-m3} de SentenceTransformers:
+
+\begin{itemize}
+    \item \textbf{Dimensiones}: 1024
+    \item \textbf{Backend}: sentence-transformers
+    \item \textbf{Dispositivo}: CUDA (GPU)
+    \item \textbf{Multilingüe}: Español, inglés, y más de 100 idiomas
+\end{itemize}
+
+\subsection{Implementación}
+
+\begin{lstlisting}[language=Python, caption=Generador de embeddings]
+class EmbeddingGenerator:
+    def __init__(self, model_name='BAAI/bge-m3'):
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.model = SentenceTransformer(model_name, device=self.device)
+        self.dimension = 1024
+    
+    def generate_embeddings(self, texts):
+        # Genera embeddings para multiples textos
+        embeddings = self.model.encode(
+            texts,
+            convert_to_numpy=True,
+            show_progress_bar=True
+        )
+        return embeddings
+    
+    def generate_single_embedding(self, text):
+        # Genera embedding para un solo texto
+        embedding = self.model.encode(text, convert_to_numpy=True)
+        return embedding.tolist()
+\end{lstlisting}
+
+\section{Vector Store (ChromaDB)}
+
+\subsection{Configuración}
+
+\begin{lstlisting}[language=Python, caption=Inicialización de ChromaDB]
+class VectorStore:
+    def __init__(self, collection_name='rag_documents', 
+                 persist_directory='./chroma_db'):
+        self.client = chromadb.PersistentClient(path=persist_directory)
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
+    
+    def add_documents(self, chunks, embeddings, metadatas, ids):
+        # Aniade documentos a la coleccion
+        self.collection.add(
+            embeddings=embeddings,
+            documents=chunks,
+            metadatas=metadatas,
+            ids=ids
+        )
+    
+    def query(self, query_embedding, n_results=5):
+        # Busca documentos similares
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            include=['documents', 'metadatas', 'distances']
+        )
+        return results
+\end{lstlisting}
+
+\section{LLM (Ollama)}
+
+\subsection{Integración}
+
+Utiliza Ollama como servidor LLM local:
+
+\begin{itemize}
+    \item \textbf{Modelo}: gpt-oss:20b
+    \item \textbf{Puerto}: 11434
+    \item \textbf{API}: HTTP REST
+    \item \textbf{Timeout}: 60 segundos
+\end{itemize}
+
+\subsection{Prompt Engineering}
+
+\begin{lstlisting}[caption=Prompt del sistema]
+You are an expert assistant that answers questions based 
+on technical documents.
+
+**CRITICAL: Respond in the SAME LANGUAGE as the user's question.**
+
+Document context:
+{context}
+
+User's question: {query}
+
+Instructions:
+- Answer clearly and concisely
+- Use ONLY the information provided in the context
+- If the information is not in the context, state it clearly
+- Cite the document when relevant
+- IMPORTANT: If you mention a table or image, include its 
+  EXACT reference (example: TABLA_15 or IMAGEN_8)
+\end{lstlisting}
+
+%================================================

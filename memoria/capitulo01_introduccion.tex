@@ -1,0 +1,31 @@
+\chapter{Introducción}
+%================================================
+
+\section{Resumen Ejecutivo}
+
+Este proyecto implementa un sistema completo de \textbf{Retrieval-Augmented Generation (RAG)} utilizando Django como framework web. El sistema permite procesar documentos técnicos complejos, extraer información estructurada, y proporcionar una interfaz de chatbot inteligente para consultar la información mediante procesamiento de lenguaje natural.
+
+\subsection{Características Principales}
+
+\begin{itemize}
+    \item \textbf{Procesamiento de documentos}: Parsing automático con Nemotron Parse v1.1
+    \item \textbf{Extracción inteligente}: Imágenes, tablas, y texto estructurado
+    \item \textbf{Chunking semántico}: División contextual del contenido
+    \item \textbf{Embeddings de alto rendimiento}: BGE-M3 con GPU (CUDA)
+    \item \textbf{Búsqueda vectorial}: ChromaDB para retrieval eficiente
+    \item \textbf{Chatbot conversacional}: Respuestas basadas en contexto con Ollama
+    \item \textbf{Procesamiento asíncrono}: Celery + Redis para tareas en background
+    \item \textbf{Interfaz administrativa}: Panel completo de gestión
+\end{itemize}
+
+\section{Objetivos del Sistema}
+
+\begin{enumerate}
+    \item Automatizar el procesamiento de documentos técnicos complejos
+    \item Proporcionar acceso rápido a información mediante búsqueda semántica
+    \item Generar respuestas contextuales en lenguaje natural
+    \item Mantener trazabilidad de fuentes y referencias
+    \item Soportar múltiples idiomas de forma transparente
+\end{enumerate}
+
+

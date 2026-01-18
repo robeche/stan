@@ -1,0 +1,29 @@
+# Django RAG Application - Requirements
+# ==================================================
+
+# Core Django
+Django==5.0.0
+psycopg2-binary==2.9.9  # For PostgreSQL support (optional)
+pillow==10.2.0  # For image handling
+
+# Celery for background tasks
+celery==5.3.6
+redis==5.0.1
+django-celery-results==2.5.1
+
+# CORS support
+django-cors-headers==4.3.1
+
+# Existing RAG dependencies (already installed in parent venv)
+# sentence-transformers==5.2.0
+# torch==2.9.1
+# chromadb==0.5.23
+# openai==1.58.1
+
+# LLM Integration
+# Note: ollama package is not needed - we use direct HTTP requests
+# Ollama server should be running separately (Docker/local)
+
+# Additional utilities
+python-dotenv==1.0.0
+tqdm==4.66.1

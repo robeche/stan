@@ -1,0 +1,233 @@
+# ===========================
+# ARCHIVOS DE CONFIGURACIÓN Y SEGURIDAD
+# ===========================
+# Variables de entorno con tokens y API keys
+.env
+.env.*
+!.env.example
+*.env
+
+# Configuraciones locales
+local_settings.py
+config.ini
+config.yaml
+secrets.json
+
+# ===========================
+# MODELOS Y ARCHIVOS GRANDES
+# ===========================
+# Modelos de Machine Learning
+*.pt
+*.pth
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.pb
+*.safetensors
+*.bin
+*.model
+*.ckpt
+
+# Archivos de embeddings pre-computados (opcional, si son muy grandes)
+# output_rag/embeddings/*.json
+
+# ===========================
+# BASES DE DATOS
+# ===========================
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Bases de datos vectoriales
+chroma_db/
+output_rag/chroma_db/
+WebApp/chroma_db/
+*.chroma
+*.faiss
+
+# ===========================
+# OUTPUTS Y ARCHIVOS GENERADOS
+# ===========================
+# Directorios de salida con datos procesados
+output_simple/
+output_rag/
+processing_output/
+WebApp/processing_output/
+
+# ===========================
+# PYTHON
+# ===========================
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribución / empaquetado
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Pytest
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# ===========================
+# DJANGO
+# ===========================
+*.log
+*.pot
+*.pyc
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static/
+local_settings.py
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# ===========================
+# DOCUMENTOS PRIVADOS/GRANDES
+# ===========================
+# PDFs grandes (descomentar si quieres excluirlos)
+# *.pdf
+# Documentos específicos si son privados o muy grandes
+# NREL5MW.pdf
+# Task-*.pdf
+
+# ===========================
+# IDE Y EDITORES
+# ===========================
+# VSCode
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ===========================
+# SISTEMA OPERATIVO
+# ===========================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ===========================
+# LOGS Y TEMPORALES
+# ===========================
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# ===========================
+# ARCHIVOS DE CACHÉ
+# ===========================
+.cache/
+*.cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# ===========================
+# OTROS
+# ===========================
+# Archivos de respaldo
+*.backup
+*.old
+
+# Node (si se usa en algún subproyecto)
+node_modules/
+npm-debug.log
+yarn-error.log

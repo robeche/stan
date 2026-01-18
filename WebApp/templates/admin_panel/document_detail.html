@@ -1,0 +1,421 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}{{ document.title }} - Detalle{% endblock %}
+
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <a href="{% url 'admin_panel:document_list' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a la lista
+    </a>
+    
+    {% if document.status == 'failed' or document.status == 'completed' %}
+    <form method="post" action="{% url 'admin_panel:document_reprocess' document.id %}" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn {% if document.status == 'failed' %}btn-warning{% else %}btn-outline-primary{% endif %}" 
+                onclick="return confirm('¿Desea reprocesar este documento? Se eliminarán todos los datos existentes y se iniciará el proceso desde el inicio.');">
+            <i class="bi bi-arrow-clockwise"></i> Reprocesar Documento
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Document Header -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">{{ document.title }}</h4>
+        {% if document.status == 'completed' %}
+            <span class="badge bg-success fs-6">Completado</span>
+        {% elif document.status == 'failed' %}
+            <span class="badge bg-danger fs-6">Fallido</span>
+        {% else %}
+            <span class="badge bg-warning fs-6">{{ document.get_status_display }}</span>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Archivo Original:</strong> {{ document.original_filename }}</p>
+                <p><strong>Subido por:</strong> {{ document.uploaded_by.username }}</p>
+                <p><strong>Fecha de subida:</strong> {{ document.created_at|date:"d/m/Y H:i:s" }}</p>
+                {% if document.processing_completed_at %}
+                <p><strong>Procesamiento completado:</strong> {{ document.processing_completed_at|date:"d/m/Y H:i:s" }}</p>
+                {% endif %}
+                {% if document.get_processing_time %}
+                <p><strong>Tiempo de procesamiento:</strong> {{ document.get_processing_time|floatformat:2 }} segundos</p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <p><strong>Total de Páginas:</strong> {{ document.total_pages }}</p>
+                <p><strong>Total de Fragmentos:</strong> {{ document.total_chunks }}</p>
+                <p><strong>Total de Imágenes:</strong> {{ document.total_images }}</p>
+                <p><strong>Total de Tablas:</strong> {{ document.total_tables }}</p>
+            </div>
+        </div>
+        
+        {% if document.error_message %}
+        <div class="alert alert-danger">
+            <strong>Error:</strong> {{ document.error_message }}
+        </div>
+        {% endif %}
+        
+        <!-- Progress Bar -->
+        <div class="progress-container mt-3" id="progressContainer">
+            <h6>Progreso del Procesamiento</h6>
+            <div class="progress" style="height: 30px;">
+                <div class="progress-bar {% if document.status == 'failed' %}bg-danger{% endif %}" 
+                     role="progressbar" 
+                     id="progressBar"
+                     style="width: {{ document.progress_percentage }}%"
+                     aria-valuenow="{{ document.progress_percentage }}" 
+                     aria-valuemin="0" aria-valuemax="100">
+                    {{ document.progress_percentage }}%
+                </div>
+            </div>
+            
+            <div class="row mt-3 text-center">
+                <div class="col-3">
+                    <i class="bi bi-file-text {% if document.parsing_completed %}text-success{% else %}text-muted{% endif %} fs-3"></i>
+                    <p class="mb-0">Parsing</p>
+                </div>
+                <div class="col-3">
+                    <i class="bi bi-scissors {% if document.chunking_completed %}text-success{% else %}text-muted{% endif %} fs-3"></i>
+                    <p class="mb-0">Chunking</p>
+                </div>
+                <div class="col-3">
+                    <i class="bi bi-cpu {% if document.embedding_completed %}text-success{% else %}text-muted{% endif %} fs-3"></i>
+                    <p class="mb-0">Embeddings</p>
+                </div>
+                <div class="col-3">
+                    <i class="bi bi-database {% if document.indexing_completed %}text-success{% else %}text-muted{% endif %} fs-3"></i>
+                    <p class="mb-0">Indexación</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for different sections -->
+<ul class="nav nav-tabs" id="docTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button">
+            Logs de Procesamiento
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="pages-tab" data-bs-toggle="tab" data-bs-target="#pages" type="button">
+            Páginas ({{ pages.count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="chunks-tab" data-bs-toggle="tab" data-bs-target="#chunks" type="button">
+            Fragmentos ({{ chunks.count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="images-tab" data-bs-toggle="tab" data-bs-target="#images" type="button">
+            Imágenes ({{ images.count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tables-tab" data-bs-toggle="tab" data-bs-target="#tables" type="button">
+            Tablas ({{ tables.count }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="docTabsContent">
+    <!-- Logs Tab -->
+    <div class="tab-pane fade show active" id="logs" role="tabpanel">
+        <div class="card">
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;" id="logsContainer">
+                {% for log in logs %}
+                    <div class="log-entry {{ log.level }}">
+                        <strong>[{{ log.stage|upper }}]</strong> {{ log.message }}<br>
+                        <small class="text-muted">{{ log.created_at|date:"d/m/Y H:i:s" }}</small>
+                    </div>
+                {% empty %}
+                    <p class="text-muted">No hay logs disponibles</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pages Tab -->
+    <div class="tab-pane fade" id="pages" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Página</th>
+                                <th>Preview</th>
+                                <th>Caracteres</th>
+                                <th>Archivo Anotado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for page in pages %}
+                            <tr>
+                                <td><strong>#{{ page.page_number }}</strong></td>
+                                <td>{{ page.content|truncatewords:15 }}</td>
+                                <td>{{ page.content|length }}</td>
+                                <td>
+                                    {% if page.annotated_markdown_file %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Sí
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-x-circle"></i> No
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" 
+                                            type="button" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#page-content-{{ page.id }}" 
+                                            aria-expanded="false">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="page-content-{{ page.id }}">
+                                <td colspan="5">
+                                    <div class="card card-body bg-light">
+                                        <div class="row">
+                                            <!-- Contenido de texto -->
+                                            <div class="col-md-{% if page.has_annotated_image %}6{% else %}12{% endif %}">
+                                                <h6><i class="bi bi-file-text"></i> Contenido de Texto:</h6>
+                                                <pre class="bg-white p-3 border rounded" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto;">{{ page.content }}</pre>
+                                                <p class="mb-0 mt-2"><small class="text-muted"><strong>Archivo:</strong> {{ page.raw_markdown_file }}</small></p>
+                                            </div>
+                                            
+                                            <!-- Imagen anotada -->
+                                            {% if page.has_annotated_image %}
+                                            <div class="col-md-6">
+                                                <h6><i class="bi bi-file-earmark-image text-success"></i> Página Anotada (con bounding boxes):</h6>
+                                                <div class="border border-success rounded p-2 bg-success bg-opacity-10" style="max-height: 500px; overflow-y: auto;">
+                                                    <img src="{{ MEDIA_URL }}{{ page.annotated_markdown_file }}" 
+                                                         alt="Página {{ page.page_number }} anotada" 
+                                                         class="img-fluid"
+                                                         style="max-width: 100%; height: auto; cursor: pointer;"
+                                                         onclick="window.open('{{ MEDIA_URL }}{{ page.annotated_markdown_file }}', '_blank')">
+                                                </div>
+                                                <p class="mb-0 mt-2">
+                                                    <small class="text-muted"><strong>Ruta:</strong> {{ page.annotated_markdown_file }}</small><br>
+                                                    <small class="text-info"><i class="bi bi-info-circle"></i> Haz clic en la imagen para verla en tamaño completo</small>
+                                                </p>
+                                            </div>
+                                            {% else %}
+                                            <div class="col-12 mt-3">
+                                                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle"></i> No hay imagen anotada disponible</p>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Imágenes y tablas de esta página -->
+                                        {% with page_images=page.images.all page_tables=page.tables.all %}
+                                        {% if page_images or page_tables %}
+                                        <hr class="mt-3">
+                                        <h6><i class="bi bi-diagram-3"></i> Elementos en esta página:</h6>
+                                        
+                                        {% if page_images %}
+                                        <div class="mb-3">
+                                            <strong><i class="bi bi-image"></i> Imágenes ({{ page_images|length }}):</strong>
+                                            <div class="row mt-2">
+                                                {% for image in page_images %}
+                                                <div class="col-md-4 mb-2">
+                                                    {% if image.image_file %}
+                                                    <img src="{{ MEDIA_URL }}{{ image.image_file }}" class="img-thumbnail" alt="Imagen" style="max-height: 150px; width: 100%; object-fit: contain;">
+                                                    {% endif %}
+                                                    <small class="text-muted d-block">Pos: {{ image.position_in_document }}</small>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if page_tables %}
+                                        <div class="mb-3">
+                                            <strong><i class="bi bi-table"></i> Tablas ({{ page_tables|length }}):</strong>
+                                            <div class="row mt-2">
+                                                {% for table in page_tables %}
+                                                <div class="col-md-6 mb-2">
+                                                    {% if table.table_image %}
+                                                    <img src="{{ MEDIA_URL }}{{ table.table_image }}" class="img-thumbnail" alt="Tabla" style="max-height: 200px; width: 100%; object-fit: contain;">
+                                                    {% endif %}
+                                                    <small class="text-muted d-block">Pos: {{ table.position_in_document }}</small>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        {% endif %}
+                                        {% endwith %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No hay páginas extraídas</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chunks Tab -->
+    <div class="tab-pane fade" id="chunks" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Preview</th>
+                                <th>Indexado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for chunk in chunks %}
+                            <tr>
+                                <td>{{ chunk.chunk_id }}</td>
+                                <td>{{ chunk.get_preview }}</td>
+                                <td>
+                                    {% if chunk.indexed_in_chromadb %}
+                                        <span class="badge bg-success">Sí</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">No hay fragmentos generados</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Images Tab -->
+    <div class="tab-pane fade" id="images" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted">Total: {{ images|length }} imágenes (mostrando primeras 20)</p>
+                <div class="row">
+                    {% for image in images %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            {% if image.image_file %}
+                            <img src="{{ MEDIA_URL }}{{ image.image_file }}" class="card-img-top" alt="Imagen {{ image.position_in_document }}" style="max-height: 200px; object-fit: contain;">
+                            {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="bi bi-image text-muted fs-1"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body">
+                                <p class="card-text mb-1"><strong>Posición:</strong> {{ image.position_in_document }}</p>
+                                {% if image.page %}
+                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Página {{ image.page.page_number }}</span></p>
+                                {% else %}
+                                <p class="card-text mb-1"><span class="badge bg-secondary">Página no asignada</span></p>
+                                {% endif %}
+                                {% if image.caption %}
+                                <p class="card-text"><small>{{ image.caption }}</small></p>
+                                {% endif %}
+                                {% if image.width and image.height %}
+                                <p class="card-text"><small class="text-muted">{{ image.width }}x{{ image.height }}px</small></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <p class="text-center">No hay imágenes extraídas</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tables Tab -->
+    <div class="tab-pane fade" id="tables" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted">Total: {{ tables|length }} tablas (mostrando primeras 20)</p>
+                <div class="row">
+                    {% for table in tables %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            {% if table.table_image %}
+                            <img src="{{ MEDIA_URL }}{{ table.table_image }}" class="card-img-top" alt="Tabla {{ table.position_in_document }}" style="max-height: 300px; object-fit: contain;">
+                            {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 300px;">
+                                <i class="bi bi-table text-muted fs-1"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body">
+                                <p class="card-text mb-1"><strong>Posición:</strong> {{ table.position_in_document }}</p>
+                                {% if table.page %}
+                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Página {{ table.page.page_number }}</span></p>
+                                {% else %}
+                                <p class="card-text mb-1"><span class="badge bg-secondary">Página no asignada</span></p>
+                                {% endif %}
+                                {% if table.caption %}
+                                <p class="card-text"><small>{{ table.caption }}</small></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <p class="text-center">No hay tablas extraídas</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-update status if document is still processing
+    {% if document.status not in 'completed,failed' %}
+    function updateStatus() {
+        fetch('/admin-panel/api/document-status/{{ document.id }}/')
+            .then(response => response.json())
+            .then(data => {
+                // Update progress bar
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.width = data.progress_percentage + '%';
+                progressBar.textContent = data.progress_percentage + '%';
+                progressBar.setAttribute('aria-valuenow', data.progress_percentage);
+                
+                // If completed or failed, reload page
+                if (data.status === 'completed' || data.status === 'failed') {
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error updating status:', error));
+    }
+    
+    // Update every 3 seconds
+    setInterval(updateStatus, 3000);
+    {% endif %}
+</script>
+{% endblock %}

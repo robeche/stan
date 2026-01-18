@@ -1,0 +1,46 @@
+\chapter{Rendimiento y Optimización}
+%================================================
+
+\section{Métricas de Rendimiento}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Operación} & \textbf{Tiempo Promedio} & \textbf{Notas} \\
+\hline
+Parsing (10 páginas) & 2-3 minutos & GPU acelerado \\
+Chunking & 5-10 segundos & \\
+Embedding generation & 10-30 segundos & Batch de 30 chunks \\
+ChromaDB indexing & 1-2 segundos & \\
+Query embedding & 0.5-1 segundo & \\
+Vector search & 0.1-0.5 segundos & \\
+LLM generation & 10-30 segundos & Primera llamada \\
+LLM generation & 3-5 segundos & Llamadas siguientes \\
+\hline
+\end{tabular}
+\caption{Métricas de rendimiento}
+\end{table}
+
+\section{Optimizaciones Implementadas}
+
+\begin{itemize}
+    \item \textbf{GPU acceleration}: CUDA para embeddings y parsing
+    \item \textbf{Batch processing}: Embeddings generados en lotes
+    \item \textbf{Async processing}: Celery para tareas largas
+    \item \textbf{Caching}: Redis para resultados intermedios
+    \item \textbf{Lazy loading}: Imágenes cargadas bajo demanda
+    \item \textbf{Connection pooling}: ChromaDB persistent client
+\end{itemize}
+
+\section{Recomendaciones}
+
+\begin{enumerate}
+    \item \textbf{Pre-cargar modelos}: Warm-up de BGE-M3 y Ollama al inicio
+    \item \textbf{Monitoreo}: Usar Flower para Celery tasks
+    \item \textbf{Logs}: Configurar logging estructurado
+    \item \textbf{Backups}: Respaldar SQLite y ChromaDB periódicamente
+    \item \textbf{Escalabilidad}: Considerar PostgreSQL para producción
+\end{enumerate}
+
+%================================================

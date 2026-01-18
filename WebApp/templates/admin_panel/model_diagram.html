@@ -1,0 +1,206 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Modelo de Relaciones{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-diagram-3"></i> Diagrama de Relaciones del Modelo</h2>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Esquema de Base de Datos</h5>
+                    <p class="text-muted">Relaciones entre los modelos del sistema RAG</p>
+                    
+                    <div class="row mt-4">
+                        <!-- Document Model (Center) -->
+                        <div class="col-md-12 text-center mb-4">
+                            <div class="card border-primary shadow-sm" style="max-width: 400px; margin: 0 auto;">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-file-earmark"></i> Document (Principal)</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled text-start small">
+                                        <li>• title, original_filename, file</li>
+                                        <li>• status, progress_percentage</li>
+                                        <li>• total_pages, total_chunks</li>
+                                        <li>• total_images, total_tables</li>
+                                        <li>• concatenated_markdown</li>
+                                        <li>• uploaded_by (FK → User)</li>
+                                    </ul>
+                                    <p class="mb-1 mt-3"><strong>Relaciones inversas:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li><code>document.pages.all()</code></li>
+                                        <li><code>document.images.all()</code></li>
+                                        <li><code>document.tables.all()</code></li>
+                                        <li><code>document.chunks.all()</code></li>
+                                        <li><code>document.logs.all()</code></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Page Model -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-info shadow-sm">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="bi bi-file-text"></i> Page</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Relaciones:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>🔗 <code>document</code> → Document</li>
+                                        <li><em>related_name='pages'</em></li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>• page_number</li>
+                                        <li>• content (TextField)</li>
+                                        <li>• raw_markdown_file</li>
+                                        <li>• annotated_markdown_file</li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Relaciones inversas:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li><code>page.images.all()</code></li>
+                                        <li><code>page.tables.all()</code></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Model -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-success shadow-sm">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="bi bi-image"></i> Image</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Relaciones:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>🔗 <code>document</code> → Document</li>
+                                        <li><em>related_name='images'</em></li>
+                                        <li>🔗 <code>page</code> → Page (nullable)</li>
+                                        <li><em>related_name='images'</em></li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>• image_file (ImageField)</li>
+                                        <li>• image_path</li>
+                                        <li>• caption</li>
+                                        <li>• width, height</li>
+                                        <li>• position_in_document</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Table Model -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-warning shadow-sm">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0"><i class="bi bi-table"></i> Table</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Relaciones:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>🔗 <code>document</code> → Document</li>
+                                        <li><em>related_name='tables'</em></li>
+                                        <li>🔗 <code>page</code> → Page (nullable)</li>
+                                        <li><em>related_name='tables'</em></li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>• table_image (ImageField)</li>
+                                        <li>• table_path</li>
+                                        <li>• caption</li>
+                                        <li>• position_in_document</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Chunk Model -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-danger shadow-sm">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0"><i class="bi bi-grid-3x3"></i> Chunk</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Relaciones:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>🔗 <code>document</code> → Document</li>
+                                        <li><em>related_name='chunks'</em></li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>• chunk_id (e.g., chunk_0001)</li>
+                                        <li>• content (TextField)</li>
+                                        <li>• chunk_index</li>
+                                        <li>• metadata (JSONField)</li>
+                                        <li>• embedding_vector (JSONField)</li>
+                                        <li>• embedding_dimension</li>
+                                        <li>• chromadb_id</li>
+                                        <li>• indexed_in_chromadb</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ProcessingLog Model -->
+                        <div class="col-md-12 mb-3">
+                            <div class="card border-secondary shadow-sm">
+                                <div class="card-header bg-secondary text-white">
+                                    <h6 class="mb-0"><i class="bi bi-journal-text"></i> ProcessingLog</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Relaciones:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>🔗 <code>document</code> → Document</li>
+                                        <li><em>related_name='logs'</em></li>
+                                    </ul>
+                                    <p class="mb-1 mt-2"><strong>Campos:</strong></p>
+                                    <ul class="list-unstyled small">
+                                        <li>• stage (parsing, chunking, embedding, indexing)</li>
+                                        <li>• level (info, success, warning, error)</li>
+                                        <li>• message</li>
+                                        <li>• details (JSONField)</li>
+                                        <li>• timestamp</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-4">
+                        <h6><i class="bi bi-info-circle"></i> Cómo acceder a las relaciones:</h6>
+                        <pre class="mb-0"><code># Obtener un documento
+document = Document.objects.get(id=1)
+
+# Acceder a elementos relacionados usando related_name
+pages = document.pages.all()          # Todas las páginas
+images = document.images.all()        # Todas las imágenes
+tables = document.tables.all()        # Todas las tablas
+chunks = document.chunks.all()        # Todos los chunks
+logs = document.logs.all()            # Todos los logs
+
+# Filtrar elementos relacionados
+page_1 = document.pages.get(page_number=1)
+indexed_chunks = document.chunks.filter(indexed_in_chromadb=True)
+
+# Relaciones de Page a Image/Table
+page = document.pages.first()
+page_images = page.images.all()      # Imágenes de esta página
+page_tables = page.tables.all()      # Tablas de esta página</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

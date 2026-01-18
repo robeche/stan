@@ -1,0 +1,197 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Dashboard - Panel de Administración RAG{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dashboard</h2>
+    <a href="{% url 'admin_panel:document_upload' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Subir Documento
+    </a>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card stat-card-primary">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Documentos</p>
+                        <h2 class="mb-0 fw-bold">{{ total_documents }}</h2>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-file-earmark-text"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card stat-card-success">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted mb-1 small">Completados</p>
+                        <h2 class="mb-0 fw-bold">{{ completed_documents }}</h2>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card stat-card-warning">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted mb-1 small">Procesando</p>
+                        <h2 class="mb-0 fw-bold">{{ processing_documents }}</h2>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card stat-card-danger">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted mb-1 small">Fallidos</p>
+                        <h2 class="mb-0 fw-bold">{{ failed_documents }}</h2>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-exclamation-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Fragmentos</p>
+                        <h2 class="mb-0 fw-bold">{{ total_chunks }}</h2>
+                    </div>
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                        <i class="bi bi-grid-3x3"></i>
+                    </div>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar" role="progressbar" style="width: {% if total_chunks > 0 %}{% widthratio indexed_chunks total_chunks 100 %}{% else %}0{% endif %}%" 
+                         aria-valuenow="{{ indexed_chunks }}" aria-valuemin="0" aria-valuemax="{{ total_chunks }}"></div>
+                </div>
+                <p class="text-muted mt-2 mb-0 small">{{ indexed_chunks }} indexados en ChromaDB</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Documents -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Documentos Recientes</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Título</th>
+                                <th>Estado</th>
+                                <th>Progreso</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in recent_documents %}
+                            <tr>
+                                <td>{{ doc.title }}</td>
+                                <td>
+                                    {% if doc.status == 'completed' %}
+                                        <span class="badge bg-success">Completado</span>
+                                    {% elif doc.status == 'failed' %}
+                                        <span class="badge bg-danger">Fallido</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{{ doc.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ doc.progress_percentage }}%"
+                                             aria-valuenow="{{ doc.progress_percentage }}" 
+                                             aria-valuemin="0" aria-valuemax="100">
+                                            {{ doc.progress_percentage }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ doc.created_at|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <a href="{% url 'admin_panel:document_detail' doc.id %}" 
+                                       class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No hay documentos</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Logs Recientes</h5>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% for log in recent_logs %}
+                    <div class="log-entry {{ log.level }}">
+                        <strong>{{ log.document.title }}</strong><br>
+                        <small class="text-muted">{{ log.stage|upper }}</small><br>
+                        {{ log.message }}<br>
+                        <small class="text-muted">{{ log.created_at|date:"H:i:s" }}</small>
+                    </div>
+                {% empty %}
+                    <p class="text-muted">No hay logs disponibles</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh every 5 seconds if there are processing documents
+    {% if processing_documents > 0 %}
+    setTimeout(function() {
+        location.reload();
+    }, 5000);
+    {% endif %}
+</script>
+{% endblock %}

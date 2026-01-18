@@ -1,0 +1,101 @@
+\appendix
+\chapter{Apéndices}
+%================================================
+
+\section{Comandos Útiles}
+
+\subsection{Django}
+
+\begin{lstlisting}[language=bash]
+# Crear migraciones
+python manage.py makemigrations
+
+# Aplicar migraciones
+python manage.py migrate
+
+# Crear superusuario
+python manage.py createsuperuser
+
+# Shell interactivo
+python manage.py shell
+
+# Colectar archivos estaticos
+python manage.py collectstatic
+\end{lstlisting}
+
+\subsection{Celery}
+
+\begin{lstlisting}[language=bash]
+# Iniciar worker
+celery -A rag_project worker -l info --pool=solo
+
+# Monitorear con Flower
+celery -A rag_project flower
+
+# Purge all tasks
+celery -A rag_project purge
+\end{lstlisting}
+
+\subsection{Redis}
+
+\begin{lstlisting}[language=bash]
+# Iniciar servidor
+redis-server
+
+# CLI
+redis-cli
+
+# Ping
+redis-cli ping
+
+# Flush all
+redis-cli FLUSHALL
+\end{lstlisting}
+
+\section{Estructura de Directorios}
+
+\begin{lstlisting}
+WebApp/
+  admin_panel/          # App de administracion
+    models.py
+    views.py
+    tasks.py
+    urls.py
+    templates/
+  chatbot/             # App de chatbot
+    models.py
+    views.py
+    urls.py
+    templates/
+  rag_project/         # Configuracion Django
+    settings.py
+    urls.py
+    celery.py
+  tools/               # Modulos RAG
+    document_chunker.py
+    embedding_generator.py
+    vector_store.py
+    reranker.py
+  media/               # Archivos subidos
+    documents/
+    extracted_images/
+    extracted_tables/
+  chroma_db/           # Base de datos vectorial
+  templates/           # Templates globales
+  manage.py
+  requirements.txt
+\end{lstlisting}
+
+\section{Referencias}
+
+\begin{itemize}
+    \item Django Documentation: \url{https://docs.djangoproject.com/}
+    \item ChromaDB Documentation: \url{https://docs.trychroma.com/}
+    \item Sentence Transformers: \url{https://www.sbert.net/}
+    \item Ollama Documentation: \url{https://ollama.ai/}
+    \item Celery Documentation: \url{https://docs.celeryproject.org/}
+    \item BGE-M3 Paper: \url{https://huggingface.co/BAAI/bge-m3}
+    \item Nemotron Parse: \url{https://huggingface.co/nvidia/NVIDIA-Nemotron-Parse-v1.1}
+\end{itemize}
+
+%================================================

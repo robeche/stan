@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot - Consulta Documentos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --bg-light: #f8fafc;
+            --bg-chat: #ffffff;
+            --border-color: #e2e8f0;
+            --user-msg-bg: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --assistant-msg-bg: #f1f5f9;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+        }
+        
+        body {
+            background: var(--bg-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+        }
+        
+        .chat-header {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+        
+        .chat-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .chat-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            background: var(--bg-light);
+        }
+        
+        .message {
+            display: flex;
+            margin-bottom: 1.5rem;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .message.user .message-content {
+            background: var(--user-msg-bg);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .message-content {
+            background: white;
+            color: var(--text-dark);
+            border: 1px solid var(--border-color);
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin: 0 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+            order: 2;
+        }
+        
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+        }
+        
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+        
+        .message.user .message-time {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .sources {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .sources-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .source-item {
+            font-size: 0.85rem;
+            color: var(--text-dark);
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-light);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #6366f1;
+        }
+        
+        .source-document {
+            font-weight: 600;
+            color: #6366f1;
+        }
+        
+        .chat-input-container {
+            padding: 1.5rem 2rem;
+            background: white;
+            border-top: 1px solid var(--border-color);
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
+        .input-wrapper {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        
+        .chat-input {
+            flex: 1;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.875rem 1.25rem;
+            font-size: 0.95rem;
+            resize: none;
+            max-height: 120px;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        .btn-send {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0.875rem 2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-send:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-new-chat {
+            background: white;
+            color: #6366f1;
+            border: 2px solid #6366f1;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-new-chat:hover {
+            background: #6366f1;
+            color: white;
+        }
+        
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6366f1;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+        
+        .empty-state h3 {
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="bi bi-chat-dots"></i> RAG Chatbot</h1>
+                    <p>Pregunta cualquier cosa sobre los documentos indexados</p>
+                </div>
+                <button class="btn-new-chat" onclick="newConversation()">
+                    <i class="bi bi-plus-circle"></i> Nueva conversación
+                </button>
+            </div>
+        </div>
+        
+        <!-- Messages Container -->
+        <div class="chat-messages" id="chatMessages">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="message {{ message.message_type }}">
+                        <div class="message-avatar">
+                            {% if message.message_type == 'user' %}
+                                <i class="bi bi-person"></i>
+                            {% else %}
+                                <i class="bi bi-robot"></i>
+                            {% endif %}
+                        </div>
+                        <div class="message-content">
+                            {{ message.content|linebreaksbr }}
+                            <div class="message-time">
+                                {{ message.created_at|date:"H:i" }}
+                            </div>
+                            
+                            {% if message.message_type == 'assistant' and message.retrieved_chunks.exists %}
+                                <div class="sources">
+                                    <div class="sources-title">
+                                        <i class="bi bi-file-text"></i> Fuentes consultadas:
+                                    </div>
+                                    {% for chunk in message.retrieved_chunks.all|slice:":3" %}
+                                        <div class="source-item">
+                                            <span class="source-document">{{ chunk.document.name }}</span>
+                                            <br>
+                                            <small>{{ chunk.text|truncatewords:30 }}</small>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-chat-square-text"></i>
+                    <h3>¡Bienvenido al Chatbot RAG!</h3>
+                    <p>Escribe tu pregunta abajo para comenzar a consultar los documentos</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Input Container -->
+        <div class="chat-input-container">
+            <div class="input-wrapper">
+                <textarea 
+                    class="chat-input" 
+                    id="messageInput" 
+                    placeholder="Escribe tu pregunta aquí..."
+                    rows="1"
+                    onkeydown="handleKeyPress(event)"
+                ></textarea>
+                <button class="btn-send" id="sendButton" onclick="sendMessage()">
+                    <i class="bi bi-send"></i>
+                    Enviar
+                </button>
+            </div>
+            <div id="loadingIndicator" class="loading-indicator mt-2" style="display: none;">
+                <div class="loading-dots">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+                <span>Procesando tu pregunta...</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+        
+        // Handle Enter key (send on Enter, new line on Shift+Enter)
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // Send message
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // Disable input
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            loadingIndicator.style.display = 'flex';
+            
+            // Add user message to UI immediately
+            addMessageToUI('user', message);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            try {
+                const response = await fetch('/send/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Add assistant response to UI
+                    addMessageToUI('assistant', data.assistant_message.content, data.assistant_message.sources);
+                } else {
+                    addMessageToUI('assistant', 'Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                addMessageToUI('assistant', 'Error al enviar el mensaje. Por favor, intenta de nuevo.');
+                console.error('Error:', error);
+            } finally {
+                // Re-enable input
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+                messageInput.focus();
+            }
+        }
+        
+        // Add message to UI
+        function addMessageToUI(type, content, sources = []) {
+            // Remove empty state if present
+            const emptyState = messagesContainer.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                             now.getMinutes().toString().padStart(2, '0');
+            
+            let sourcesHTML = '';
+            if (sources && sources.length > 0) {
+                sourcesHTML = `
+                    <div class="sources">
+                        <div class="sources-title">
+                            <i class="bi bi-file-text"></i> Fuentes consultadas:
+                        </div>
+                        ${sources.map(source => `
+                            <div class="source-item">
+                                <span class="source-document">${source.document_name}</span>
+                                <br>
+                                <small>${source.preview}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">
+                    ${type === 'user' ? '<i class="bi bi-person"></i>' : '<i class="bi bi-robot"></i>'}
+                </div>
+                <div class="message-content">
+                    ${content.replace(/\n/g, '<br>')}
+                    <div class="message-time">${timeString}</div>
+                    ${sourcesHTML}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // New conversation
+        async function newConversation() {
+            if (confirm('¿Estás seguro de que quieres iniciar una nueva conversación? Se perderá el historial actual.')) {
+                try {
+                    const response = await fetch('/new/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        location.reload();
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error al crear nueva conversación');
+                }
+            }
+        }
+        
+        // Scroll to bottom on load
+        window.addEventListener('load', () => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            messageInput.focus();
+        });
+    </script>
+</body>
+</html>

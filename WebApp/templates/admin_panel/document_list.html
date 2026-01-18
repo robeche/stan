@@ -1,0 +1,141 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Documentos - Panel de Administración RAG{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Documentos</h2>
+    <a href="{% url 'admin_panel:document_upload' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Subir Documento
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="status" class="form-label">Filtrar por Estado</label>
+                <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    <option value="uploaded" {% if status_filter == 'uploaded' %}selected{% endif %}>Subido</option>
+                    <option value="parsing" {% if status_filter == 'parsing' %}selected{% endif %}>Parseando</option>
+                    <option value="chunking" {% if status_filter == 'chunking' %}selected{% endif %}>Dividiendo</option>
+                    <option value="embedding" {% if status_filter == 'embedding' %}selected{% endif %}>Generando Embeddings</option>
+                    <option value="indexing" {% if status_filter == 'indexing' %}selected{% endif %}>Indexando</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completado</option>
+                    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Fallido</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Documents Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Estado</th>
+                        <th>Progreso</th>
+                        <th>Páginas</th>
+                        <th>Fragmentos</th>
+                        <th>Imágenes</th>
+                        <th>Tablas</th>
+                        <th>Fecha</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td>
+                            <strong>{{ doc.title }}</strong><br>
+                            <small class="text-muted">{{ doc.original_filename }}</small>
+                        </td>
+                        <td>
+                            {% if doc.status == 'completed' %}
+                                <span class="badge bg-success">Completado</span>
+                            {% elif doc.status == 'failed' %}
+                                <span class="badge bg-danger">Fallido</span>
+                            {% else %}
+                                <span class="badge bg-warning">{{ doc.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="progress" style="height: 20px; min-width: 100px;">
+                                <div class="progress-bar {% if doc.status == 'failed' %}bg-danger{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ doc.progress_percentage }}%"
+                                     aria-valuenow="{{ doc.progress_percentage }}" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    {{ doc.progress_percentage }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ doc.total_pages }}</td>
+                        <td>{{ doc.total_chunks }}</td>
+                        <td>{{ doc.total_images }}</td>
+                        <td>{{ doc.total_tables }}</td>
+                        <td>{{ doc.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <a href="{% url 'admin_panel:document_detail' doc.id %}" 
+                               class="btn btn-sm btn-info" title="Ver detalles">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if doc.status == 'failed' or doc.status == 'completed' %}
+                            <form method="post" action="{% url 'admin_panel:document_reprocess' doc.id %}" 
+                                  style="display: inline;"
+                                  onsubmit="return confirm('¿Desea reprocesar este documento?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm {% if doc.status == 'failed' %}btn-warning{% else %}btn-outline-primary{% endif %}" title="Reprocesar">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'admin_panel:document_delete' doc.id %}" 
+                                  style="display: inline;"
+                                  onsubmit="return confirm('¿Está seguro de eliminar este documento?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger" title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center">
+                            No hay documentos disponibles. 
+                            <a href="{% url 'admin_panel:document_upload' %}">Subir el primer documento</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh every 10 seconds if there are documents in processing
+    var hasProcessing = false;
+    {% for doc in documents %}
+        {% if doc.status not in 'completed,failed' %}
+            hasProcessing = true;
+        {% endif %}
+    {% endfor %}
+    
+    if (hasProcessing) {
+        setTimeout(function() {
+            location.reload();
+        }, 10000);
+    }
+</script>
+{% endblock %}
