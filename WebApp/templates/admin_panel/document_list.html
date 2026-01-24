@@ -1,12 +1,12 @@
 {% extends 'admin_panel/base.html' %}
 
-{% block title %}Documentos - Panel de Administración RAG{% endblock %}
+{% block title %}Documents - RAG Admin Panel{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Documentos</h2>
+    <h2>Documents</h2>
     <a href="{% url 'admin_panel:document_upload' %}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Subir Documento
+        <i class="bi bi-plus-lg"></i> Upload Document
     </a>
 </div>
 
@@ -15,16 +15,16 @@
     <div class="card-body">
         <form method="get" class="row g-3">
             <div class="col-md-4">
-                <label for="status" class="form-label">Filtrar por Estado</label>
+                <label for="status" class="form-label">Filter by Status</label>
                 <select name="status" id="status" class="form-select" onchange="this.form.submit()">
-                    <option value="">Todos</option>
-                    <option value="uploaded" {% if status_filter == 'uploaded' %}selected{% endif %}>Subido</option>
-                    <option value="parsing" {% if status_filter == 'parsing' %}selected{% endif %}>Parseando</option>
-                    <option value="chunking" {% if status_filter == 'chunking' %}selected{% endif %}>Dividiendo</option>
-                    <option value="embedding" {% if status_filter == 'embedding' %}selected{% endif %}>Generando Embeddings</option>
-                    <option value="indexing" {% if status_filter == 'indexing' %}selected{% endif %}>Indexando</option>
-                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completado</option>
-                    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Fallido</option>
+                    <option value="">All</option>
+                    <option value="uploaded" {% if status_filter == 'uploaded' %}selected{% endif %}>Uploaded</option>
+                    <option value="parsing" {% if status_filter == 'parsing' %}selected{% endif %}>Parsing</option>
+                    <option value="chunking" {% if status_filter == 'chunking' %}selected{% endif %}>Chunking</option>
+                    <option value="embedding" {% if status_filter == 'embedding' %}selected{% endif %}>Generating Embeddings</option>
+                    <option value="indexing" {% if status_filter == 'indexing' %}selected{% endif %}>Indexing</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
                 </select>
             </div>
         </form>
@@ -38,15 +38,15 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Título</th>
-                        <th>Estado</th>
-                        <th>Progreso</th>
-                        <th>Páginas</th>
-                        <th>Fragmentos</th>
-                        <th>Imágenes</th>
-                        <th>Tablas</th>
-                        <th>Fecha</th>
-                        <th>Acciones</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Pages</th>
+                        <th>Chunks</th>
+                        <th>Images</th>
+                        <th>Tables</th>
+                        <th>Date</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -58,9 +58,9 @@
                         </td>
                         <td>
                             {% if doc.status == 'completed' %}
-                                <span class="badge bg-success">Completado</span>
+                                <span class="badge bg-success">Completed</span>
                             {% elif doc.status == 'failed' %}
-                                <span class="badge bg-danger">Fallido</span>
+                                <span class="badge bg-danger">Failed</span>
                             {% else %}
                                 <span class="badge bg-warning">{{ doc.get_status_display }}</span>
                             {% endif %}
@@ -83,24 +83,24 @@
                         <td>{{ doc.created_at|date:"d/m/Y H:i" }}</td>
                         <td>
                             <a href="{% url 'admin_panel:document_detail' doc.id %}" 
-                               class="btn btn-sm btn-info" title="Ver detalles">
+                               class="btn btn-sm btn-info" title="View details">
                                 <i class="bi bi-eye"></i>
                             </a>
                             {% if doc.status == 'failed' or doc.status == 'completed' %}
                             <form method="post" action="{% url 'admin_panel:document_reprocess' doc.id %}" 
                                   style="display: inline;"
-                                  onsubmit="return confirm('¿Desea reprocesar este documento?');">
+                                  onsubmit="return confirm('Do you want to reprocess this document?');">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm {% if doc.status == 'failed' %}btn-warning{% else %}btn-outline-primary{% endif %}" title="Reprocesar">
+                                <button type="submit" class="btn btn-sm {% if doc.status == 'failed' %}btn-warning{% else %}btn-outline-primary{% endif %}" title="Reprocess">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </form>
                             {% endif %}
                             <form method="post" action="{% url 'admin_panel:document_delete' doc.id %}" 
                                   style="display: inline;"
-                                  onsubmit="return confirm('¿Está seguro de eliminar este documento?');">
+                                  onsubmit="return confirm('Are you sure you want to delete this document?');">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-danger" title="Eliminar">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
@@ -109,8 +109,8 @@
                     {% empty %}
                     <tr>
                         <td colspan="9" class="text-center">
-                            No hay documentos disponibles. 
-                            <a href="{% url 'admin_panel:document_upload' %}">Subir el primer documento</a>
+                            No documents available. 
+                            <a href="{% url 'admin_panel:document_upload' %}">Upload the first document</a>
                         </td>
                     </tr>
                     {% endfor %}

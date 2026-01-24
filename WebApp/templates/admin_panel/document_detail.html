@@ -1,19 +1,19 @@
 {% extends 'admin_panel/base.html' %}
 
-{% block title %}{{ document.title }} - Detalle{% endblock %}
+{% block title %}{{ document.title }} - Detail{% endblock %}
 
 {% block content %}
 <div class="mb-4 d-flex justify-content-between align-items-center">
     <a href="{% url 'admin_panel:document_list' %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Volver a la lista
+        <i class="bi bi-arrow-left"></i> Back to list
     </a>
     
     {% if document.status == 'failed' or document.status == 'completed' %}
     <form method="post" action="{% url 'admin_panel:document_reprocess' document.id %}" style="display: inline;">
         {% csrf_token %}
         <button type="submit" class="btn {% if document.status == 'failed' %}btn-warning{% else %}btn-outline-primary{% endif %}" 
-                onclick="return confirm('¿Desea reprocesar este documento? Se eliminarán todos los datos existentes y se iniciará el proceso desde el inicio.');">
-            <i class="bi bi-arrow-clockwise"></i> Reprocesar Documento
+                onclick="return confirm('Do you want to reprocess this document? All existing data will be deleted and the process will start from the beginning.');">
+            <i class="bi bi-arrow-clockwise"></i> Reprocess Document
         </button>
     </form>
     {% endif %}
@@ -24,9 +24,9 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h4 class="mb-0">{{ document.title }}</h4>
         {% if document.status == 'completed' %}
-            <span class="badge bg-success fs-6">Completado</span>
+            <span class="badge bg-success fs-6">Completed</span>
         {% elif document.status == 'failed' %}
-            <span class="badge bg-danger fs-6">Fallido</span>
+            <span class="badge bg-danger fs-6">Failed</span>
         {% else %}
             <span class="badge bg-warning fs-6">{{ document.get_status_display }}</span>
         {% endif %}
@@ -34,21 +34,21 @@
     <div class="card-body">
         <div class="row">
             <div class="col-md-6">
-                <p><strong>Archivo Original:</strong> {{ document.original_filename }}</p>
-                <p><strong>Subido por:</strong> {{ document.uploaded_by.username }}</p>
-                <p><strong>Fecha de subida:</strong> {{ document.created_at|date:"d/m/Y H:i:s" }}</p>
+                <p><strong>Original File:</strong> {{ document.original_filename }}</p>
+                <p><strong>Uploaded by:</strong> {{ document.uploaded_by.username }}</p>
+                <p><strong>Upload date:</strong> {{ document.created_at|date:"d/m/Y H:i:s" }}</p>
                 {% if document.processing_completed_at %}
-                <p><strong>Procesamiento completado:</strong> {{ document.processing_completed_at|date:"d/m/Y H:i:s" }}</p>
+                <p><strong>Processing completed:</strong> {{ document.processing_completed_at|date:"d/m/Y H:i:s" }}</p>
                 {% endif %}
                 {% if document.get_processing_time %}
-                <p><strong>Tiempo de procesamiento:</strong> {{ document.get_processing_time|floatformat:2 }} segundos</p>
+                <p><strong>Processing time:</strong> {{ document.get_processing_time|floatformat:2 }} seconds</p>
                 {% endif %}
             </div>
             <div class="col-md-6">
-                <p><strong>Total de Páginas:</strong> {{ document.total_pages }}</p>
-                <p><strong>Total de Fragmentos:</strong> {{ document.total_chunks }}</p>
-                <p><strong>Total de Imágenes:</strong> {{ document.total_images }}</p>
-                <p><strong>Total de Tablas:</strong> {{ document.total_tables }}</p>
+                <p><strong>Total Pages:</strong> {{ document.total_pages }}</p>
+                <p><strong>Total Chunks:</strong> {{ document.total_chunks }}</p>
+                <p><strong>Total Images:</strong> {{ document.total_images }}</p>
+                <p><strong>Total Tables:</strong> {{ document.total_tables }}</p>
             </div>
         </div>
         
@@ -60,7 +60,7 @@
         
         <!-- Progress Bar -->
         <div class="progress-container mt-3" id="progressContainer">
-            <h6>Progreso del Procesamiento</h6>
+            <h6>Processing Progress</h6>
             <div class="progress" style="height: 30px;">
                 <div class="progress-bar {% if document.status == 'failed' %}bg-danger{% endif %}" 
                      role="progressbar" 
@@ -87,7 +87,7 @@
                 </div>
                 <div class="col-3">
                     <i class="bi bi-database {% if document.indexing_completed %}text-success{% else %}text-muted{% endif %} fs-3"></i>
-                    <p class="mb-0">Indexación</p>
+                    <p class="mb-0">Indexing</p>
                 </div>
             </div>
         </div>
@@ -98,27 +98,27 @@
 <ul class="nav nav-tabs" id="docTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button">
-            Logs de Procesamiento
+            Processing Logs
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="pages-tab" data-bs-toggle="tab" data-bs-target="#pages" type="button">
-            Páginas ({{ pages.count }})
+            Pages ({{ pages.count }})
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="chunks-tab" data-bs-toggle="tab" data-bs-target="#chunks" type="button">
-            Fragmentos ({{ chunks.count }})
+            Chunks ({{ chunks.count }})
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="images-tab" data-bs-toggle="tab" data-bs-target="#images" type="button">
-            Imágenes ({{ images.count }})
+            Images ({{ images.count }})
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="tables-tab" data-bs-toggle="tab" data-bs-target="#tables" type="button">
-            Tablas ({{ tables.count }})
+            Tables ({{ tables.count }})
         </button>
     </li>
 </ul>
@@ -134,7 +134,7 @@
                         <small class="text-muted">{{ log.created_at|date:"d/m/Y H:i:s" }}</small>
                     </div>
                 {% empty %}
-                    <p class="text-muted">No hay logs disponibles</p>
+                    <p class="text-muted">No logs available</p>
                 {% endfor %}
             </div>
         </div>
@@ -148,11 +148,11 @@
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Página</th>
+                                <th>Page</th>
                                 <th>Preview</th>
-                                <th>Caracteres</th>
-                                <th>Archivo Anotado</th>
-                                <th>Acciones</th>
+                                <th>Characters</th>
+                                <th>Annotated File</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -164,7 +164,7 @@
                                 <td>
                                     {% if page.annotated_markdown_file %}
                                         <span class="badge bg-success">
-                                            <i class="bi bi-check-circle"></i> Sí
+                                            <i class="bi bi-check-circle"></i> Yes
                                         </span>
                                     {% else %}
                                         <span class="badge bg-secondary">
@@ -178,7 +178,7 @@
                                             data-bs-toggle="collapse" 
                                             data-bs-target="#page-content-{{ page.id }}" 
                                             aria-expanded="false">
-                                        <i class="bi bi-eye"></i> Ver
+                                        <i class="bi bi-eye"></i> View
                                     </button>
                                 </td>
                             </tr>
@@ -188,15 +188,15 @@
                                         <div class="row">
                                             <!-- Contenido de texto -->
                                             <div class="col-md-{% if page.has_annotated_image %}6{% else %}12{% endif %}">
-                                                <h6><i class="bi bi-file-text"></i> Contenido de Texto:</h6>
+                                                <h6><i class="bi bi-file-text"></i> Text Content:</h6>
                                                 <pre class="bg-white p-3 border rounded" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto;">{{ page.content }}</pre>
-                                                <p class="mb-0 mt-2"><small class="text-muted"><strong>Archivo:</strong> {{ page.raw_markdown_file }}</small></p>
+                                                <p class="mb-0 mt-2"><small class="text-muted"><strong>File:</strong> {{ page.raw_markdown_file }}</small></p>
                                             </div>
                                             
                                             <!-- Imagen anotada -->
                                             {% if page.has_annotated_image %}
                                             <div class="col-md-6">
-                                                <h6><i class="bi bi-file-earmark-image text-success"></i> Página Anotada (con bounding boxes):</h6>
+                                                <h6><i class="bi bi-file-earmark-image text-success"></i> Annotated Page (with bounding boxes):</h6>
                                                 <div class="border border-success rounded p-2 bg-success bg-opacity-10" style="max-height: 500px; overflow-y: auto;">
                                                     <img src="{{ MEDIA_URL }}{{ page.annotated_markdown_file }}" 
                                                          alt="Página {{ page.page_number }} anotada" 
@@ -205,26 +205,26 @@
                                                          onclick="window.open('{{ MEDIA_URL }}{{ page.annotated_markdown_file }}', '_blank')">
                                                 </div>
                                                 <p class="mb-0 mt-2">
-                                                    <small class="text-muted"><strong>Ruta:</strong> {{ page.annotated_markdown_file }}</small><br>
-                                                    <small class="text-info"><i class="bi bi-info-circle"></i> Haz clic en la imagen para verla en tamaño completo</small>
+                                                    <small class="text-muted"><strong>Path:</strong> {{ page.annotated_markdown_file }}</small><br>
+                                                    <small class="text-info"><i class="bi bi-info-circle"></i> Click on the image to view it in full size</small>
                                                 </p>
                                             </div>
                                             {% else %}
                                             <div class="col-12 mt-3">
-                                                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle"></i> No hay imagen anotada disponible</p>
+                                                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle"></i> No annotated image available</p>
                                             </div>
                                             {% endif %}
                                         </div>
                                         
-                                        <!-- Imágenes y tablas de esta página -->
+                                        <!-- Images and tables on this page -->
                                         {% with page_images=page.images.all page_tables=page.tables.all %}
                                         {% if page_images or page_tables %}
                                         <hr class="mt-3">
-                                        <h6><i class="bi bi-diagram-3"></i> Elementos en esta página:</h6>
+                                        <h6><i class="bi bi-diagram-3"></i> Elements on this page:</h6>
                                         
                                         {% if page_images %}
                                         <div class="mb-3">
-                                            <strong><i class="bi bi-image"></i> Imágenes ({{ page_images|length }}):</strong>
+                                            <strong><i class="bi bi-image"></i> Images ({{ page_images|length }}):</strong>
                                             <div class="row mt-2">
                                                 {% for image in page_images %}
                                                 <div class="col-md-4 mb-2">
@@ -240,7 +240,7 @@
                                         
                                         {% if page_tables %}
                                         <div class="mb-3">
-                                            <strong><i class="bi bi-table"></i> Tablas ({{ page_tables|length }}):</strong>
+                                            <strong><i class="bi bi-table"></i> Tables ({{ page_tables|length }}):</strong>
                                             <div class="row mt-2">
                                                 {% for table in page_tables %}
                                                 <div class="col-md-6 mb-2">
@@ -260,7 +260,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center">No hay páginas extraídas</td>
+                                <td colspan="3" class="text-center">No chunks generated</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -280,25 +280,59 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Preview</th>
-                                <th>Indexado</th>
+                                <th>Indexed</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for chunk in chunks %}
                             <tr>
-                                <td>{{ chunk.chunk_id }}</td>
+                                <td><strong>{{ chunk.chunk_id }}</strong></td>
                                 <td>{{ chunk.get_preview }}</td>
                                 <td>
                                     {% if chunk.indexed_in_chromadb %}
-                                        <span class="badge bg-success">Sí</span>
+                                        <span class="badge bg-success">Yes</span>
                                     {% else %}
                                         <span class="badge bg-secondary">No</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" 
+                                            type="button" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#chunk-content-{{ chunk.id }}" 
+                                            aria-expanded="false">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="chunk-content-{{ chunk.id }}">
+                                <td colspan="4">
+                                    <div class="card card-body bg-light">
+                                        <h6><i class="bi bi-file-text"></i> Full Content:</h6>
+                                        <pre class="bg-white p-3 border rounded" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto;">{{ chunk.content }}</pre>
+                                        
+                                        {% if chunk.metadata %}
+                                        <hr>
+                                        <h6><i class="bi bi-info-circle"></i> Metadata:</h6>
+                                        <pre class="bg-white p-3 border rounded" style="white-space: pre-wrap;">{{ chunk.metadata|safe }}</pre>
+                                        {% endif %}
+                                        
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <strong>Chunk Index:</strong> {{ chunk.chunk_index }} | 
+                                                <strong>Characters:</strong> {{ chunk.content|length }}
+                                                {% if chunk.embedding_dimension %}
+                                                | <strong>Embedding Dimension:</strong> {{ chunk.embedding_dimension }}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="3" class="text-center">No hay fragmentos generados</td>
+                                <td colspan="4" class="text-center">No chunks generated</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -312,7 +346,7 @@
     <div class="tab-pane fade" id="images" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <p class="text-muted">Total: {{ images|length }} imágenes (mostrando primeras 20)</p>
+                <p class="text-muted">Total: {{ images|length }} images (showing first 20)</p>
                 <div class="row">
                     {% for image in images %}
                     <div class="col-md-4 mb-3">
@@ -325,11 +359,11 @@
                             </div>
                             {% endif %}
                             <div class="card-body">
-                                <p class="card-text mb-1"><strong>Posición:</strong> {{ image.position_in_document }}</p>
+                                <p class="card-text mb-1"><strong>Position:</strong> {{ image.position_in_document }}</p>
                                 {% if image.page %}
-                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Página {{ image.page.page_number }}</span></p>
+                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Page {{ image.page.page_number }}</span></p>
                                 {% else %}
-                                <p class="card-text mb-1"><span class="badge bg-secondary">Página no asignada</span></p>
+                                <p class="card-text mb-1"><span class="badge bg-secondary">Page not assigned</span></p>
                                 {% endif %}
                                 {% if image.caption %}
                                 <p class="card-text"><small>{{ image.caption }}</small></p>
@@ -342,7 +376,7 @@
                     </div>
                     {% empty %}
                     <div class="col-12">
-                        <p class="text-center">No hay imágenes extraídas</p>
+                        <p class="text-center">No extracted images</p>
                     </div>
                     {% endfor %}
                 </div>
@@ -354,7 +388,7 @@
     <div class="tab-pane fade" id="tables" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <p class="text-muted">Total: {{ tables|length }} tablas (mostrando primeras 20)</p>
+                <p class="text-muted">Total: {{ tables|length }} tables (showing first 20)</p>
                 <div class="row">
                     {% for table in tables %}
                     <div class="col-md-6 mb-3">
@@ -367,11 +401,11 @@
                             </div>
                             {% endif %}
                             <div class="card-body">
-                                <p class="card-text mb-1"><strong>Posición:</strong> {{ table.position_in_document }}</p>
+                                <p class="card-text mb-1"><strong>Position:</strong> {{ table.position_in_document }}</p>
                                 {% if table.page %}
-                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Página {{ table.page.page_number }}</span></p>
+                                <p class="card-text mb-1"><span class="badge bg-info"><i class="bi bi-file-earmark-text"></i> Page {{ table.page.page_number }}</span></p>
                                 {% else %}
-                                <p class="card-text mb-1"><span class="badge bg-secondary">Página no asignada</span></p>
+                                <p class="card-text mb-1"><span class="badge bg-secondary">Page not assigned</span></p>
                                 {% endif %}
                                 {% if table.caption %}
                                 <p class="card-text"><small>{{ table.caption }}</small></p>
@@ -381,7 +415,7 @@
                     </div>
                     {% empty %}
                     <div class="col-12">
-                        <p class="text-center">No hay tablas extraídas</p>
+                        <p class="text-center">No extracted tables</p>
                     </div>
                     {% endfor %}
                 </div>

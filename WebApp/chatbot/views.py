@@ -76,7 +76,7 @@ def send_message(request):
             # If generation fails, still return an error message to the user
             import traceback
             traceback.print_exc()
-            response_text = f"Lo siento, ocurrió un error al procesar tu pregunta: {str(e)}"
+            response_text = f"Sorry, an error occurred while processing your question: {str(e)}"
             retrieved_chunks = []
         
         # Save assistant message
@@ -129,8 +129,22 @@ def generate_response(query):
         # Initialize embedding generator
         embedding_gen = EmbeddingGenerator()
         
-        # Generate query embedding
-        query_embedding = embedding_gen.generate_single_embedding(query)
+        # Query expansion: add synonyms for better retrieval
+        query_expanded = query
+        # Common technical synonyms
+        synonyms = {
+            'diameter': 'diameter length size',
+            'length': 'length diameter size',
+            'height': 'height length',
+            'width': 'width diameter',
+        }
+        for term, expansion in synonyms.items():
+            if term.lower() in query.lower() and term not in expansion.split()[0]:
+                query_expanded = f"{query} {expansion}"
+                break
+        
+        # Generate query embedding (use expanded query for better retrieval)
+        query_embedding = embedding_gen.generate_single_embedding(query_expanded)
         
         # Initialize vector store with Django settings
         vector_store = VectorStore(
@@ -138,10 +152,10 @@ def generate_response(query):
             persist_directory=settings.RAG_CONFIG['VECTOR_STORE']['PERSIST_DIRECTORY']
         )
         
-        # Query vector store
+        # Query vector store - retrieve more chunks for better coverage
         results = vector_store.query(
             query_embedding=query_embedding,
-            n_results=5
+            n_results=10  # Increased from 5 to capture more potential matches
         )
         
         # Extract chunk IDs from results (ChromaDB returns them in metadata)
@@ -157,6 +171,9 @@ def generate_response(query):
         if chunk_ids:
             chunks = list(Chunk.objects.filter(chunk_id__in=chunk_ids))
             print(f"DEBUG: Found {len(chunks)} chunks in Django DB")
+            print(f"DEBUG: Query: '{query}' -> Expanded: '{query_expanded}'")
+            for i, chunk in enumerate(chunks[:5], 1):
+                print(f"DEBUG: Chunk {i} ({chunk.chunk_id}): {chunk.content[:100]}...")
         
         # Build context from retrieved chunks
         if chunks:
@@ -214,18 +231,16 @@ def generate_response(query):
             
             # Add tables/images references to context
             if tables_info:
-                context += "\n\nTablas disponibles:\n"
+                context += "\n\nAvailable tables:\n"
                 context += "\n".join([f"- {t['reference']}: {t['caption']}" for t in tables_info])
                 print(f"DEBUG: Tables info: {tables_info}")
             if images_info:
-                context += "\n\nImágenes disponibles:\n"
+                context += "\n\nAvailable images:\n"
                 context += "\n".join([f"- {i['reference']}: {i['caption']}" for i in images_info])
                 print(f"DEBUG: Images info: {images_info}")
             
             # Build prompt for Ollama
             prompt = f"""You are an expert assistant that answers questions based on technical documents.
-
-**CRITICAL: Respond in the SAME LANGUAGE as the user's question. If the question is in English, respond in English. If in Spanish, respond in Spanish.**
 
 Document context:
 {context}
@@ -237,7 +252,7 @@ Instructions:
 - Use ONLY the information provided in the context
 - If the information is not in the context, state it clearly
 - Cite the document when relevant
-- IMPORTANT: If you mention a table or image, include its EXACT reference as listed (example: TABLA_15 or IMAGEN_8). DO NOT use alternative descriptions.
+- IMPORTANT: If you mention a table or image, include its EXACT reference as listed (example: TABLE_15 or IMAGE_8). DO NOT use alternative descriptions.
 
 Response:"""
             
@@ -314,19 +329,19 @@ Response:"""
                     
                     return answer, chunks
                 else:
-                    return f"Error al comunicarse con Ollama: {response.status_code}", chunks
+                    return f"Error communicating with Ollama: {response.status_code}", chunks
                     
             except requests.exceptions.ConnectionError:
-                return "Error: No se pudo conectar al servidor Ollama. Asegúrate de que esté corriendo en http://localhost:11434", chunks
+                return "Error: Could not connect to Ollama server. Make sure it's running at http://localhost:11434", chunks
             except requests.exceptions.Timeout:
-                return "Error: Tiempo de espera agotado. El modelo está tardando demasiado en responder.", chunks
+                return "Error: Request timed out. The model is taking too long to respond.", chunks
             except Exception as e:
-                return f"Error al llamar a Ollama: {str(e)}", chunks
+                return f"Error calling Ollama: {str(e)}", chunks
         else:
-            return "No encontré información relevante en la base de datos para responder a tu consulta.", []
+            return "I couldn't find relevant information in the database to answer your query.", []
         
     except Exception as e:
-        return f"Lo siento, ocurrió un error al procesar tu consulta: {str(e)}", []
+        return f"Sorry, an error occurred while processing your query: {str(e)}", []
 
 
 @require_http_methods(["POST"])

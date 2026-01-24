@@ -11,13 +11,13 @@ class Document(models.Model):
     """Main document model representing uploaded files."""
     
     STATUS_CHOICES = [
-        ('uploaded', 'Subido'),
-        ('parsing', 'Parseando'),
-        ('chunking', 'Dividiendo en fragmentos'),
-        ('embedding', 'Generando embeddings'),
-        ('indexing', 'Indexando en ChromaDB'),
-        ('completed', 'Completado'),
-        ('failed', 'Fallido'),
+        ('uploaded', 'Uploaded'),
+        ('parsing', 'Parsing'),
+        ('chunking', 'Chunking'),
+        ('embedding', 'Generating embeddings'),
+        ('indexing', 'Indexing in ChromaDB'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
     ]
     
     title = models.CharField(max_length=500)
@@ -55,8 +55,8 @@ class Document(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-        verbose_name = 'Documento'
-        verbose_name_plural = 'Documentos'
+        verbose_name = 'Document'
+        verbose_name_plural = 'Documents'
     
     def __str__(self):
         return f"{self.title} ({self.status})"
@@ -112,8 +112,8 @@ class Page(models.Model):
     class Meta:
         ordering = ['page_number']
         unique_together = ['document', 'page_number']
-        verbose_name = 'Página'
-        verbose_name_plural = 'Páginas'
+        verbose_name = 'Page'
+        verbose_name_plural = 'Pages'
     
     def __str__(self):
         return f"{self.document.title} - Página {self.page_number}"
@@ -146,8 +146,8 @@ class Image(models.Model):
     
     class Meta:
         ordering = ['position_in_document']
-        verbose_name = 'Imagen'
-        verbose_name_plural = 'Imágenes'
+        verbose_name = 'Image'
+        verbose_name_plural = 'Images'
     
     def __str__(self):
         return f"Imagen {self.position_in_document} - {self.document.title}"
@@ -170,8 +170,8 @@ class Table(models.Model):
     
     class Meta:
         ordering = ['position_in_document']
-        verbose_name = 'Tabla'
-        verbose_name_plural = 'Tablas'
+        verbose_name = 'Table'
+        verbose_name_plural = 'Tables'
     
     def __str__(self):
         return f"Tabla {self.position_in_document} - {self.document.title}"
@@ -203,8 +203,8 @@ class Chunk(models.Model):
     class Meta:
         ordering = ['chunk_index']
         unique_together = ['document', 'chunk_id']
-        verbose_name = 'Fragmento'
-        verbose_name_plural = 'Fragmentos'
+        verbose_name = 'Chunk'
+        verbose_name_plural = 'Chunks'
     
     def __str__(self):
         return f"{self.document.title} - {self.chunk_id}"
@@ -236,8 +236,8 @@ class ProcessingLog(models.Model):
     
     class Meta:
         ordering = ['created_at']
-        verbose_name = 'Log de Procesamiento'
-        verbose_name_plural = 'Logs de Procesamiento'
+        verbose_name = 'Processing Log'
+        verbose_name_plural = 'Processing Logs'
     
     def __str__(self):
         return f"[{self.level.upper()}] {self.stage} - {self.document.title}"
