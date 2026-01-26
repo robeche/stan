@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import shutil
+import time
 from pathlib import Path
 from datetime import datetime
 from celery import shared_task
@@ -19,6 +20,11 @@ from tools.parser import parse_document
 from tools.chunker import DocumentChunker
 from tools.embeddings import EmbeddingGenerator
 from tools.vector_store import VectorStore
+
+
+class PageProcessingTimeoutError(Exception):
+    """Raised when a page takes too long to process based on adaptive timeout."""
+    pass
 
 
 def log_processing(document, stage, message, level='info', details=None):
@@ -101,48 +107,118 @@ def process_document(self, document_id):
             
             if page_files:
                 annotated_count = 0
-                for page_file in page_files:
-                    # Extract page number from filename
+                # Adaptive timeout mechanism: track processing time per page
+                max_processing_time = 0.0  # Maximum time observed for any page
+                page_processing_times = []  # Track all times for statistics
+                
+                for idx, page_file in enumerate(page_files):
+                    page_start_time = time.time()
+                    
+                    # Calculate adaptive timeout (3x maximum observed time)
+                    # Start with a reasonable default for the first page
+                    if max_processing_time > 0:
+                        timeout_threshold = 3.0 * max_processing_time
+                    else:
+                        timeout_threshold = 180.0  # 3 minutes default for first page
+                    
                     try:
-                        # Handle both page_1.md and page_1_raw.txt formats
-                        filename = page_file.stem
-                        if '_raw' in filename:
-                            # Extract from page_1_raw -> 1
-                            page_num = int(filename.split('_')[1])
-                        else:
-                            # Extract from page_1 -> 1
-                            page_num = int(filename.split('_')[1])
-                    except (ValueError, IndexError) as e:
-                        log_processing(document, 'parsing', f'No se pudo extraer número de página de {page_file.name}: {e}', level='warning')
+                        # Extract page number from filename
+                        try:
+                            # Handle both page_1.md and page_1_raw.txt formats
+                            filename = page_file.stem
+                            if '_raw' in filename:
+                                # Extract from page_1_raw -> 1
+                                page_num = int(filename.split('_')[1])
+                            else:
+                                # Extract from page_1 -> 1
+                                page_num = int(filename.split('_')[1])
+                        except (ValueError, IndexError) as e:
+                            log_processing(document, 'parsing', f'No se pudo extraer número de página de {page_file.name}: {e}', level='warning')
+                            continue
+                        
+                        with open(page_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        # Check for annotated PNG image (not text file)
+                        # Annotated pages are PNG images with bounding boxes drawn
+                        annotated_png = annotated_dir / f"page_{page_num}_annotated.png"
+                        annotated_exists = annotated_png.exists()
+                        
+                        # Copy annotated image to media directory for serving
+                        annotated_relative_path = None
+                        if annotated_exists:
+                            annotated_count += 1
+                            media_annotated_dir = Path(settings.MEDIA_ROOT) / 'annotated_pages' / doc_name
+                            media_annotated_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            media_annotated_path = media_annotated_dir / annotated_png.name
+                            shutil.copy2(annotated_png, media_annotated_path)
+                            
+                            # Store relative path for serving
+                            annotated_relative_path = f'annotated_pages/{doc_name}/{annotated_png.name}'
+                        
+                        Page.objects.create(
+                            document=document,
+                            page_number=page_num,
+                            content=content,
+                            raw_markdown_file=str(page_file),
+                            annotated_markdown_file=annotated_relative_path
+                        )
+                        
+                        # Track processing time for this page
+                        page_elapsed_time = time.time() - page_start_time
+                        page_processing_times.append(page_elapsed_time)
+                        
+                        # Update maximum processing time
+                        if page_elapsed_time > max_processing_time:
+                            max_processing_time = page_elapsed_time
+                        
+                        # Check if this page exceeded the adaptive timeout
+                        if page_elapsed_time > timeout_threshold:
+                            error_msg = (
+                                f"Timeout en página {page_num}: procesamiento tardó {page_elapsed_time:.2f}s "
+                                f"(umbral: {timeout_threshold:.2f}s basado en máximo previo: {max_processing_time:.2f}s). "
+                                f"La página puede estar causando un bloqueo en el procesamiento."
+                            )
+                            log_processing(document, 'parsing', error_msg, level='error')
+                            
+                            # Update document status
+                            document.status = 'failed'
+                            document.error_message = f"Timeout en página {page_num} después de {page_elapsed_time:.2f}s"
+                            document.save()
+                            
+                            raise PageProcessingTimeoutError(error_msg)
+                        
+                        # Log progress every 10 pages
+                        if (idx + 1) % 10 == 0:
+                            avg_time = sum(page_processing_times) / len(page_processing_times)
+                            log_processing(
+                                document, 'parsing',
+                                f'Procesadas {idx + 1}/{len(page_files)} páginas. '
+                                f'Tiempo promedio: {avg_time:.2f}s, máximo: {max_processing_time:.2f}s',
+                                level='info'
+                            )
+                    
+                    except PageProcessingTimeoutError:
+                        # Re-raise timeout errors to stop processing
+                        raise
+                    except Exception as page_error:
+                        # Log individual page errors but continue processing
+                        log_processing(
+                            document, 'parsing',
+                            f'Error procesando página {page_num}: {str(page_error)}',
+                            level='warning'
+                        )
                         continue
-                    
-                    with open(page_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Check for annotated PNG image (not text file)
-                    # Annotated pages are PNG images with bounding boxes drawn
-                    annotated_png = annotated_dir / f"page_{page_num}_annotated.png"
-                    annotated_exists = annotated_png.exists()
-                    
-                    # Copy annotated image to media directory for serving
-                    annotated_relative_path = None
-                    if annotated_exists:
-                        annotated_count += 1
-                        media_annotated_dir = Path(settings.MEDIA_ROOT) / 'annotated_pages' / doc_name
-                        media_annotated_dir.mkdir(parents=True, exist_ok=True)
-                        
-                        media_annotated_path = media_annotated_dir / annotated_png.name
-                        shutil.copy2(annotated_png, media_annotated_path)
-                        
-                        # Store relative path for serving
-                        annotated_relative_path = f'annotated_pages/{doc_name}/{annotated_png.name}'
-                    
-                    Page.objects.create(
-                        document=document,
-                        page_number=page_num,
-                        content=content,
-                        raw_markdown_file=str(page_file),
-                        annotated_markdown_file=annotated_relative_path
+                
+                # Final statistics
+                if page_processing_times:
+                    avg_time = sum(page_processing_times) / len(page_processing_times)
+                    log_processing(
+                        document, 'parsing',
+                        f'Estadísticas de procesamiento - Total páginas: {len(page_files)}, '
+                        f'Tiempo promedio: {avg_time:.2f}s, Tiempo máximo: {max_processing_time:.2f}s',
+                        level='success'
                     )
                 
                 document.total_pages = len(page_files)

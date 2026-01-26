@@ -1,0 +1,62 @@
+\babel@toc {spanish}{}\relax 
+\contentsline {chapter}{\numberline {1}Introducción}{3}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Contexto y Motivación}{3}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Objetivos del Sistema}{3}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Alcance del Proyecto}{4}{section.1.3}%
+\contentsline {section}{\numberline {1.4}Tecnologías Principales}{4}{section.1.4}%
+\contentsline {section}{\numberline {1.5}Decisiones de Diseño: Implementación Manual vs LangChain}{4}{section.1.5}%
+\contentsline {subsection}{\numberline {1.5.1}¿Qué es LangChain?}{5}{subsection.1.5.1}%
+\contentsline {subsection}{\numberline {1.5.2}Razones para la Implementación Manual}{5}{subsection.1.5.2}%
+\contentsline {subsection}{\numberline {1.5.3}Conclusión}{6}{subsection.1.5.3}%
+\contentsline {section}{\numberline {1.6}Estructura de la Memoria}{6}{section.1.6}%
+\contentsline {chapter}{\numberline {2}Arquitectura General}{7}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Visión General de la Arquitectura}{7}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Principios de Diseño}{7}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Modularidad Total}{7}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Procesamiento Asíncrono}{8}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {2.2.3}Aceleración por Hardware}{8}{subsection.2.2.3}%
+\contentsline {subsection}{\numberline {2.2.4}Persistencia Dual}{8}{subsection.2.2.4}%
+\contentsline {section}{\numberline {2.3}Módulos del Sistema}{8}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}Parsing: Nemotron Parse v1.1}{8}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}Chunking Semántico}{9}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}Embeddings: BGE-M3}{9}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.4}Vector Store: ChromaDB}{9}{subsection.2.3.4}%
+\contentsline {subsection}{\numberline {2.3.5}LLM: Ollama}{10}{subsection.2.3.5}%
+\contentsline {subsection}{\numberline {2.3.6}Coordinación: Django + Celery + Redis}{10}{subsection.2.3.6}%
+\contentsline {section}{\numberline {2.4}Pipeline de Procesamiento}{10}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Pipeline de Consulta RAG}{11}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Diagrama de Arquitectura}{11}{section.2.6}%
+\contentsline {chapter}{\numberline {3}Aplicación Web}{13}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Visión General}{13}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Panel de Administración}{13}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Propósito}{13}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Funcionalidades Principales}{13}{subsection.3.2.2}%
+\contentsline {subsubsection}{Dashboard}{13}{subsection.3.2.2}%
+\contentsline {subsubsection}{Subida de Documentos}{14}{subsection.3.2.2}%
+\contentsline {subsubsection}{Vista de Detalle}{14}{Item.27}%
+\contentsline {subsection}{\numberline {3.2.3}Modelos de Datos}{15}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Tareas Asíncronas}{16}{subsection.3.2.4}%
+\contentsline {section}{\numberline {3.3}Chatbot}{16}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Propósito}{16}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Funcionalidades Principales}{16}{subsection.3.3.2}%
+\contentsline {subsubsection}{Interfaz de Chat}{16}{subsection.3.3.2}%
+\contentsline {subsubsection}{Respuestas Enriquecidas}{17}{subsection.3.3.2}%
+\contentsline {subsubsection}{Query Expansion}{17}{subsection.3.3.2}%
+\contentsline {subsubsection}{Modal de Chunks}{18}{lstnumber.-2.13}%
+\contentsline {subsection}{\numberline {3.3.3}Modelos de Datos}{18}{subsection.3.3.3}%
+\contentsline {subsection}{\numberline {3.3.4}Lógica de Generación de Respuestas}{18}{subsection.3.3.4}%
+\contentsline {subsection}{\numberline {3.3.5}Prompt Engineering}{19}{subsection.3.3.5}%
+\contentsline {section}{\numberline {3.4}Navegación y UX}{20}{section.3.4}%
+\contentsline {chapter}{\numberline {4}Conclusiones}{21}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Logros del Proyecto}{21}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Objetivos Cumplidos}{21}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Contribuciones Técnicas}{21}{subsection.4.1.2}%
+\contentsline {section}{\numberline {4.2}Lecciones Aprendidas}{22}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Arquitectura y Diseño}{22}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Modelos y Datos}{22}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Rendimiento}{22}{subsection.4.2.3}%
+\contentsline {section}{\numberline {4.3}Trabajo Futuro}{23}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Funcionalidades}{23}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Optimizaciones}{23}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Escalabilidad}{23}{subsection.4.3.3}%
+\contentsline {section}{\numberline {4.4}Reflexión Final}{24}{section.4.4}%

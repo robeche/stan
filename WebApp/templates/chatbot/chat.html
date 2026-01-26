@@ -203,11 +203,108 @@
             border-radius: 6px;
             margin-bottom: 0.5rem;
             border-left: 3px solid #6366f1;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .source-item:hover {
+            background: #e0e7ff;
+            transform: translateX(4px);
         }
         
         .source-document {
             font-weight: 600;
             color: #6366f1;
+        }
+        
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 800px;
+            max-height: 80vh;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .modal-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-dark);
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.3s ease;
+        }
+        
+        .modal-close:hover {
+            color: var(--text-dark);
+        }
+        
+        .modal-body {
+            padding: 2rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .chunk-content {
+            background: var(--bg-light);
+            padding: 1.5rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .chunk-metadata {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .chunk-metadata-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .chunk-metadata-item:last-child {
+            border-bottom: none;
         }
         
         .chat-input-container {
@@ -392,10 +489,10 @@
                                         <i class="bi bi-file-text"></i> Sources consulted:
                                     </div>
                                     {% for chunk in message.retrieved_chunks.all|slice:":3" %}
-                                        <div class="source-item">
-                                            <span class="source-document">{{ chunk.document.name }}</span>
+                                        <div class="source-item" onclick="showChunkModal('{{ chunk.chunk_id }}', '{{ chunk.document.title }}', {{ chunk.id }})">
+                                            <span class="source-document">{{ chunk.document.title }}</span>
                                             <br>
-                                            <small>{{ chunk.text|truncatewords:30 }}</small>
+                                            <small>{{ chunk.content|truncatewords:30 }}</small>
                                         </div>
                                     {% endfor %}
                                 </div>
@@ -438,6 +535,23 @@
         </div>
     </div>
     
+    <!-- Modal for chunk details -->
+    <div class="modal-overlay" id="chunkModal" onclick="closeChunkModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3><i class="bi bi-file-text"></i> <span id="modalTitle">Chunk Details</span></h3>
+                <button class="modal-close" onclick="closeChunkModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="chunk-content" id="modalContent">
+                    Loading...
+                </div>
+                <div class="chunk-metadata" id="modalMetadata">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const messagesContainer = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
@@ -543,7 +657,7 @@
                             <i class="bi bi-file-text"></i> Sources consulted:
                         </div>
                         ${sources.map(source => `
-                            <div class="source-item">
+                            <div class="source-item" onclick="showChunkModal('${source.chunk_id}', '${source.document_name}', ${source.chunk_db_id})">
                                 <span class="source-document">${source.document_name}</span>
                                 <br>
                                 <small>${source.preview}</small>
@@ -603,6 +717,68 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             messageInput.focus();
         });
+        
+        // Show chunk modal
+        async function showChunkModal(chunkId, documentName, chunkDbId) {
+            const modal = document.getElementById('chunkModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            const modalMetadata = document.getElementById('modalMetadata');
+            
+            modalTitle.textContent = `${documentName} - ${chunkId}`;
+            modalContent.textContent = 'Loading...';
+            modalMetadata.innerHTML = '';
+            modal.classList.add('active');
+            
+            try {
+                const response = await fetch(`/chunk/${chunkDbId}/`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    modalContent.textContent = data.chunk.content;
+                    
+                    modalMetadata.innerHTML = `
+                        <div class="chunk-metadata-item">
+                            <strong>Chunk ID:</strong>
+                            <span>${data.chunk.chunk_id}</span>
+                        </div>
+                        <div class="chunk-metadata-item">
+                            <strong>Document:</strong>
+                            <span>${data.chunk.document_title}</span>
+                        </div>
+                        <div class="chunk-metadata-item">
+                            <strong>Chunk Index:</strong>
+                            <span>${data.chunk.chunk_index}</span>
+                        </div>
+                        <div class="chunk-metadata-item">
+                            <strong>Length:</strong>
+                            <span>${data.chunk.content.length} characters</span>
+                        </div>
+                        ${data.chunk.embedding_dimension ? `
+                        <div class="chunk-metadata-item">
+                            <strong>Embedding Dimension:</strong>
+                            <span>${data.chunk.embedding_dimension}</span>
+                        </div>
+                        ` : ''}
+                        <div class="chunk-metadata-item">
+                            <strong>Indexed in ChromaDB:</strong>
+                            <span>${data.chunk.indexed_in_chromadb ? 'Yes' : 'No'}</span>
+                        </div>
+                    `;
+                } else {
+                    modalContent.textContent = 'Error loading chunk details.';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                modalContent.textContent = 'Error loading chunk details.';
+            }
+        }
+        
+        // Close chunk modal
+        function closeChunkModal(event) {
+            const modal = document.getElementById('chunkModal');
+            modal.classList.remove('active');
+        }
     </script>
 </body>
 </html>

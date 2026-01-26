@@ -8,6 +8,41 @@ import argparse
 import sys
 import re
 import glob
+import time
+import threading
+
+
+class TimeoutException(Exception):
+    """Raised when an operation times out."""
+    pass
+
+
+class TimeoutContext:
+    """Context manager for timeout operations (Windows compatible)."""
+    def __init__(self, seconds, error_message='Operation timed out'):
+        self.seconds = seconds
+        self.error_message = error_message
+        self.timer = None
+        self.timed_out = False
+        
+    def _timeout_handler(self):
+        self.timed_out = True
+        # Note: We can't interrupt the model.generate() call directly in Python
+        # This will only work if we check timed_out periodically
+        # For now, we'll set a flag and check it after generation
+        
+    def __enter__(self):
+        if self.seconds > 0:
+            self.timer = threading.Timer(self.seconds, self._timeout_handler)
+            self.timer.start()
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.timer:
+            self.timer.cancel()
+        if self.timed_out and exc_type is None:
+            raise TimeoutException(self.error_message)
+        return False
 
 # Load model and processor
 model_id = "nvidia/NVIDIA-Nemotron-Parse-v1.1"
@@ -29,8 +64,19 @@ model = AutoModel.from_pretrained(
     token=token
 )
 
-def parse_document(image_path):
-    """Parse a single image with the model"""
+def parse_document(image_path, timeout=None):
+    """Parse a single image with the model
+    
+    Args:
+        image_path: Path to the image file
+        timeout: Maximum time in seconds (None for no limit)
+    
+    Returns:
+        Parsed markdown text
+        
+    Raises:
+        TimeoutException: If parsing exceeds timeout
+    """
     image = Image.open(image_path).convert("RGB")
     print(f"  Imagen cargada: {image.size}")
     
@@ -40,16 +86,47 @@ def parse_document(image_path):
     inputs = {k: v.to(device) if hasattr(v, 'to') else v for k, v in inputs.items()}
     
     print(f"  Generando texto...")
+    if timeout:
+        print(f"  ⏱️  Timeout configurado: {timeout:.1f}s")
     
     from transformers import GenerationConfig
     generation_config = GenerationConfig.from_pretrained(model_id, trust_remote_code=True)
     generation_config.use_cache = False
     generation_config.max_new_tokens = 16384
     
-    generated_ids = model.generate(**inputs, generation_config=generation_config)
-    result = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    # Store result in a container to access from thread
+    result_container = {'result': None, 'error': None}
     
-    print(f"  Tokens generados: {generated_ids.shape[1]}")
+    def generate_with_model():
+        try:
+            generated_ids = model.generate(**inputs, generation_config=generation_config)
+            result = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            result_container['result'] = result
+        except Exception as e:
+            result_container['error'] = e
+    
+    # Run generation in a thread so we can timeout
+    if timeout:
+        thread = threading.Thread(target=generate_with_model)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            # Thread is still running - timeout occurred
+            print(f"  ⚠️  TIMEOUT: La generación excedió {timeout:.1f}s")
+            raise TimeoutException(f"Parsing exceeded timeout of {timeout:.1f}s")
+        
+        if result_container['error']:
+            raise result_container['error']
+            
+        result = result_container['result']
+    else:
+        # No timeout - run directly
+        generated_ids = model.generate(**inputs, generation_config=generation_config)
+        result = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    
+    print(f"  Tokens generados: {len(result.split())}")
     print(f"  Longitud resultado: {len(result)} caracteres")
     
     if not result.strip().endswith('>'):
@@ -386,13 +463,28 @@ def process_pdf(pdf_path, output_directory, dpi=300):
     page_images = pdf_to_images(pdf_path, dpi=dpi)
     total_pages = len(page_images)
     
+    # Adaptive timeout mechanism: track processing time per page
+    max_processing_time = 0.0  # Maximum time observed for any page
+    page_processing_times = []  # Track all times for statistics
+    
     # Process each page
     for idx, page_data in enumerate(page_images, 1):
+        page_start_time = time.time()
         page_num = page_data['page_num']
         image = page_data['image']
         
+        # Calculate adaptive timeout (3x maximum observed time)
+        # Start with a reasonable default for the first page
+        # Minimum timeout is 10 seconds to avoid false positives
+        if max_processing_time > 0:
+            timeout_threshold = max(10.0, 3.0 * max_processing_time)
+        else:
+            timeout_threshold = 180.0  # 3 minutes default for first page
+        
         print(f"{'='*80}")
         print(f"PROCESANDO PÁGINA {page_num} de {total_pages} ({idx}/{total_pages})")
+        if max_processing_time > 0:
+            print(f"⏱️  Timeout adaptativo: {timeout_threshold:.1f}s (basado en máximo: {max_processing_time:.1f}s)")
         print('='*80)
         
         # Save page image
@@ -400,42 +492,113 @@ def process_pdf(pdf_path, output_directory, dpi=300):
         image.save(page_path)
         print(f"✓ Página guardada: {page_path.name}")
         
-        # Parse page (guardar PNG para evitar compresión)
+        # Parse page with timeout
         temp_image_path = output_dir / f"temp_page_{page_num}.png"
         image.save(temp_image_path)
         
-        result = parse_document(str(temp_image_path))
-        # Reordenar por Y y reemplazar contenido de figuras por filename
-        result = reorder_by_y(result)
-        result = replace_picture_content(result, doc_name, page_num)
-        
-        # Save raw output
-        raw_output_path = output_dir / "raw_output" / f"page_{page_num}_raw.txt"
-        with open(raw_output_path, 'w', encoding='utf-8') as f:
-            f.write(result)
-        print(f"✓ Salida raw guardada: {raw_output_path.name}")
+        try:
+            # Use adaptive timeout for parsing
+            result = parse_document(str(temp_image_path), timeout=timeout_threshold)
+            
+            # Reordenar por Y y reemplazar contenido de figuras por filename
+            result = reorder_by_y(result)
+            result = replace_picture_content(result, doc_name, page_num)
+            
+            # Save raw output
+            raw_output_path = output_dir / "raw_output" / f"page_{page_num}_raw.txt"
+            with open(raw_output_path, 'w', encoding='utf-8') as f:
+                f.write(result)
+            print(f"✓ Salida raw guardada: {raw_output_path.name}")
 
-        # Draw bounding boxes only for tables, figures/images, formulas
-        annotated_path = output_dir / "annotated_pages" / f"page_{page_num}_annotated.png"
-        boxes = draw_selected_boxes(image.copy(), result, annotated_path)
-        if boxes:
-            print(f"✓ Bounding boxes dibujados: {boxes} -> {annotated_path.name}")
-        else:
-            print("- Sin bounding boxes seleccionados en esta página")
+            # Draw bounding boxes only for tables, figures/images, formulas
+            annotated_path = output_dir / "annotated_pages" / f"page_{page_num}_annotated.png"
+            boxes = draw_selected_boxes(image.copy(), result, annotated_path)
+            if boxes:
+                print(f"✓ Bounding boxes dibujados: {boxes} -> {annotated_path.name}")
+            else:
+                print("- Sin bounding boxes seleccionados en esta página")
 
-        # Extraer assets (figuras y tablas)
-        figs, tabs = extract_assets(image, result, output_dir, doc_name, page_num)
-        print(f"✓ Assets extraídos: figuras={figs}, tablas={tabs}")
+            # Extraer assets (figuras y tablas)
+            figs, tabs = extract_assets(image, result, output_dir, doc_name, page_num)
+            print(f"✓ Assets extraídos: figuras={figs}, tablas={tabs}")
+            
+        except TimeoutException as e:
+            print(f"\n{'='*80}")
+            print(f"❌ ERROR: TIMEOUT EN PÁGINA {page_num}")
+            print(f"{'='*80}")
+            print(f"⏱️  La página excedió el timeout de {timeout_threshold:.1f}s")
+            print(f"⏱️  Máximo tiempo previo: {max_processing_time:.1f}s")
+            print(f"\n⚠️  ABORTANDO PROCESAMIENTO DEL DOCUMENTO")
+            print(f"⚠️  Páginas completadas: {idx-1}/{total_pages}")
+            print(f"⚠️  Esta página puede tener contenido muy complejo o estar causando un bloqueo.")
+            print(f"{'='*80}\n")
+            
+            # Clean up temp file
+            if temp_image_path.exists():
+                temp_image_path.unlink()
+            
+            # Raise exception to stop entire process
+            raise Exception(f"Timeout en página {page_num}: excedió {timeout_threshold:.1f}s")
         
-        # Clean up temp file
-        temp_image_path.unlink()
+        except Exception as e:
+            print(f"\n⚠️  Error procesando página {page_num}: {str(e)}")
+            print(f"⚠️  Saltando esta página y continuando...\n")
+            # Clean up and continue with next page
+            if temp_image_path.exists():
+                temp_image_path.unlink()
+            continue
         
-        print(f"✓ Página {page_num} completada")
-        print(f"📊 Progreso: {idx}/{total_pages} páginas ({int(idx/total_pages*100)}%)\n")
+        
+        # Clean up temp file (if not already cleaned in exception handler)
+        if temp_image_path.exists():
+            temp_image_path.unlink()
+        
+        # Track processing time for this page
+        page_elapsed_time = time.time() - page_start_time
+        page_processing_times.append(page_elapsed_time)
+        
+        # Update maximum processing time
+        if page_elapsed_time > max_processing_time:
+            max_processing_time = page_elapsed_time
+        
+        print(f"✓ Página {page_num} completada en {page_elapsed_time:.2f}s")
+        
+        print(f"📊 Progreso: {idx}/{total_pages} páginas ({int(idx/total_pages*100)}%)")
+        
+        # Show statistics every 10 pages
+        if idx % 10 == 0 and page_processing_times:
+            avg_time = sum(page_processing_times) / len(page_processing_times)
+            min_time = min(page_processing_times)
+            print(f"\n📊 ESTADÍSTICAS (primeras {idx} páginas):")
+            print(f"   • Tiempo promedio: {avg_time:.2f}s")
+            print(f"   • Tiempo mínimo: {min_time:.2f}s")
+            print(f"   • Tiempo máximo: {max_processing_time:.2f}s")
+            print(f"   • Próximo timeout: {2.0 * max_processing_time:.2f}s")
+        print()
+    
+    # Final statistics
+    if page_processing_times:
+        avg_time = sum(page_processing_times) / len(page_processing_times)
+        min_time = min(page_processing_times)
+        total_time = sum(page_processing_times)
+    
+    # Final statistics
+    if page_processing_times:
+        avg_time = sum(page_processing_times) / len(page_processing_times)
+        min_time = min(page_processing_times)
+        total_time = sum(page_processing_times)
     
     print(f"{'='*80}")
     print(f"✓ PROCESO COMPLETADO")
     print(f"{'='*80}")
+    if page_processing_times:
+        print(f"📊 ESTADÍSTICAS FINALES:")
+        print(f"   • Total páginas: {total_pages}")
+        print(f"   • Tiempo total: {total_time:.2f}s ({total_time/60:.1f} min)")
+        print(f"   • Tiempo promedio/página: {avg_time:.2f}s")
+        print(f"   • Tiempo mínimo: {min_time:.2f}s")
+        print(f"   • Tiempo máximo: {max_processing_time:.2f}s")
+        print(f"{'='*80}")
     print(f"✓ Páginas guardadas en: {output_dir}/pages/")
     print(f"✓ Salidas raw en: {output_dir}/raw_output/")
 

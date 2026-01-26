@@ -1,0 +1,190 @@
+\chapter{Arquitectura General}
+%================================================
+
+\section{Visión General de la Arquitectura}
+
+El sistema implementa una arquitectura modular distribuida donde cada componente tiene una responsabilidad específica y puede ser desarrollado, probado y actualizado de manera independiente. Esta filosofía de diseño es fundamental para la mantenibilidad y escalabilidad del sistema.
+
+La arquitectura se organiza en tres capas principales:
+
+\begin{enumerate}
+    \item \textbf{Capa de Presentación}: Interfaces web (admin panel y chatbot)
+    \item \textbf{Capa de Coordinación}: Django + Celery + Redis
+    \item \textbf{Capa de Procesamiento}: Módulos RAG + Bases de datos
+\end{enumerate}
+
+El flujo de datos en el sistema sigue dos caminos principales:
+
+\begin{itemize}
+    \item \textbf{Flujo de ingesta}: Admin → Django → Celery → Módulos RAG → Bases de datos
+    \item \textbf{Flujo de consulta}: Usuario → Chatbot → Búsqueda vectorial → LLM → Respuesta
+\end{itemize}
+
+\section{Principios de Diseño}
+
+La arquitectura se fundamenta en los siguientes principios:
+
+\subsection{Modularidad Total}
+
+Cada módulo es completamente independiente y se comunica con otros mediante interfaces bien definidas. Esto permite:
+
+\begin{itemize}
+    \item Actualizar el modelo de embeddings sin afectar el parsing
+    \item Mejorar el chunking sin impactar la generación de respuestas
+    \item Experimentar con nuevos modelos de forma segura
+    \item Escalar componentes individuales según necesidad
+\end{itemize}
+
+\subsection{Procesamiento Asíncrono}
+
+Las operaciones computacionalmente intensivas se ejecutan en background mediante Celery, garantizando que la interfaz web permanezca responsive incluso durante el procesamiento de documentos extensos.
+
+\subsection{Aceleración por Hardware}
+
+Los modelos de IA utilizan GPU cuando está disponible, reduciendo tiempos de procesamiento de horas a minutos. El sistema incluye fallback automático a CPU para garantizar compatibilidad.
+
+\subsection{Persistencia Dual}
+
+El sistema combina dos tipos de almacenamiento:
+
+\begin{itemize}
+    \item \textbf{Base de datos relacional (SQLite/PostgreSQL)}: Metadatos, estado de procesamiento, relaciones
+    \item \textbf{Base de datos vectorial (ChromaDB)}: Embeddings para búsqueda semántica
+\end{itemize}
+
+\section{Módulos del Sistema}
+
+\subsection{Parsing: Nemotron Parse v1.1}
+
+\textbf{Propósito}: Convertir documentos en estructuras de datos semánticas
+
+El módulo de parsing utiliza el modelo NVIDIA-Nemotron-Parse-v1.1, especializado en comprensión de layout de documentos. A diferencia del parsing tradicional que solo extrae texto plano, Nemotron preserva la estructura semántica identificando títulos, párrafos, listas, tablas e imágenes con sus bounding boxes.
+
+\textbf{Características principales}:
+\begin{itemize}
+    \item Extracción de texto con estructura preservada
+    \item Detección y extracción de imágenes con coordenadas
+    \item Identificación de tablas con metadatos
+    \item Salida en formato Markdown + JSON
+    \item Aceleración GPU (CUDA) con fallback a CPU
+\end{itemize}
+
+\textbf{Entrada}: Documentos PDF, DOCX, DOC, TXT, MD
+
+\textbf{Salida}: Texto estructurado en Markdown, imágenes extraídas, tablas en formato JSON
+
+\subsection{Chunking Semántico}
+
+\textbf{Propósito}: Dividir documentos en fragmentos óptimos para búsqueda
+
+El módulo de chunking implementa una estrategia que respeta la estructura natural del documento, buscando puntos de división lógicos en lugar de cortar arbitrariamente. Esto mantiene el contexto necesario en cada fragmento.
+
+\textbf{Características principales}:
+\begin{itemize}
+    \item Tamaño de chunk configurable (por defecto 1200 caracteres)
+    \item Overlap entre chunks (150 caracteres) para evitar pérdida de información
+    \item Respeta límites de párrafos y secciones
+    \item Metadatos enriquecidos (página, sección, documento)
+\end{itemize}
+
+\textbf{Estrategia de división}: RecursiveCharacterTextSplitter con separadores jerárquicos: saltos de párrafo → saltos de línea → puntos → espacios
+
+\subsection{Embeddings: BGE-M3}
+
+\textbf{Propósito}: Convertir texto en representaciones vectoriales para búsqueda semántica
+
+El módulo utiliza BGE-M3 (BAAI General Embedding, Multilingual), un modelo optimizado para búsqueda semántica que genera vectores de 1024 dimensiones. Estos vectores capturan el significado semántico del texto, permitiendo encontrar contenido relacionado incluso cuando las palabras exactas son diferentes.
+
+\textbf{Características principales}:
+\begin{itemize}
+    \item Vectores de 1024 dimensiones
+    \item Soporte multilingüe (100+ idiomas)
+    \item Procesamiento por lotes (batch processing)
+    \item Aceleración GPU mediante PyTorch
+    \item Normalización automática de vectores
+\end{itemize}
+
+\textbf{Rendimiento}: ~30 chunks procesados por segundo en GPU, ~5 chunks/segundo en CPU
+
+\subsection{Vector Store: ChromaDB}
+
+\textbf{Propósito}: Almacenar y buscar embeddings eficientemente
+
+ChromaDB implementa un índice HNSW (Hierarchical Navigable Small World) optimizado para búsquedas de vecinos más cercanos en espacios de alta dimensionalidad. Permite realizar búsquedas semánticas extremadamente rápidas incluso con millones de vectores.
+
+\textbf{Características principales}:
+\begin{itemize}
+    \item Índice HNSW para búsqueda rápida
+    \item Métrica de similitud: distancia coseno
+    \item Persistencia en disco
+    \item Metadatos asociados a cada vector
+    \item Soporte para filtros por metadatos
+\end{itemize}
+
+\textbf{Rendimiento}: Búsquedas en <100ms para colecciones de hasta 100K vectores
+
+\subsection{LLM: Ollama}
+
+\textbf{Propósito}: Generar respuestas en lenguaje natural basadas en contexto
+
+Ollama actúa como servidor local que hospeda el modelo de lenguaje gpt-oss:20b (20 mil millones de parámetros). El sistema envía un prompt estructurado que incluye instrucciones, contexto recuperado de ChromaDB, y la pregunta del usuario. El LLM sintetiza esta información generando respuestas coherentes.
+
+\textbf{Características principales}:
+\begin{itemize}
+    \item Servidor local (control total de datos)
+    \item Modelo gpt-oss:20b
+    \item API REST sobre HTTP
+    \item Configuración de temperatura y top-p
+    \item Streaming de respuestas (opcional)
+\end{itemize}
+
+\textbf{Prompt Engineering}: El prompt incluye instrucciones sobre cómo comportarse, restricciones (responder solo con información del contexto), formato de respuesta (citar fuentes), y manejo de múltiples idiomas.
+
+\subsection{Coordinación: Django + Celery + Redis}
+
+\textbf{Django} gestiona la aplicación web, controla el flujo de peticiones HTTP, maneja los modelos de datos, y renderiza las vistas. Actúa como coordinador central del sistema.
+
+\textbf{Celery} ejecuta tareas largas en background sin bloquear la interfaz web. Los workers de Celery pueden ejecutarse en múltiples máquinas, permitiendo escalado horizontal.
+
+\textbf{Redis} gestiona la cola de tareas pendientes para Celery y almacena datos temporales para acceso rápido, mejorando el rendimiento general del sistema.
+
+\section{Pipeline de Procesamiento}
+
+El procesamiento de un documento sigue un pipeline secuencial de cuatro etapas:
+
+\begin{enumerate}
+    \item \textbf{Parsing (25\%)}: Nemotron extrae texto, tablas e imágenes
+    \item \textbf{Chunking (50\%)}: El texto se divide en fragmentos semánticos
+    \item \textbf{Embedding (75\%)}: BGE-M3 genera vectores de 1024 dimensiones
+    \item \textbf{Indexing (100\%)}: ChromaDB indexa los vectores para búsqueda
+\end{enumerate}
+
+Cada etapa actualiza el porcentaje de progreso en la base de datos, proporcionando feedback en tiempo real al administrador. Este diseño modular permite reintentar etapas específicas en caso de fallo sin reprocesar todo el documento.
+
+\section{Pipeline de Consulta RAG}
+
+Cuando un usuario hace una pregunta, el sistema ejecuta el siguiente proceso:
+
+\begin{enumerate}
+    \item \textbf{Embedding de la query}: Se convierte la pregunta en un vector de 1024 dimensiones usando el mismo modelo BGE-M3
+    
+    \item \textbf{Búsqueda vectorial}: ChromaDB recupera los N chunks más similares (por defecto N=10) usando distancia coseno
+    
+    \item \textbf{Construcción de contexto}: Se recuperan los chunks completos desde la base de datos relacional, incluyendo referencias a tablas e imágenes
+    
+    \item \textbf{Generación LLM}: Se envía a Ollama un prompt con instrucciones + contexto + pregunta
+    
+    \item \textbf{Post-procesamiento}: Se inyectan automáticamente las tablas e imágenes referenciadas en la respuesta
+    
+    \item \textbf{Respuesta al usuario}: Se muestra la respuesta con contenido visual y fuentes citadas
+\end{enumerate}
+
+Este pipeline completo se ejecuta en 5-15 segundos dependiendo del hardware y la complejidad de la consulta.
+
+\section{Diagrama de Arquitectura}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{diagrama.png}
+\caption{Arquitectura general del sistema con capas claramente diferenciadas}
+\end{figure}

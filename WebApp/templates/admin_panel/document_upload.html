@@ -1,13 +1,13 @@
 {% extends 'admin_panel/base.html' %}
 
-{% block title %}Upload Document - RAG Admin Panel{% endblock %}
+{% block title %}Subir Documento - Panel de Administración RAG{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">Upload New Document</h4>
+                <h4 class="mb-0">Subir Nuevo Documento</h4>
             </div>
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
@@ -22,7 +22,7 @@
                             <div class="text-danger">{{ form.title.errors }}</div>
                         {% endif %}
                         <small class="form-text text-muted">
-                            Optional. If not provided, the filename will be used.
+                            Opcional. Si no se proporciona, se usará el nombre del archivo.
                         </small>
                     </div>
                     
@@ -40,23 +40,23 @@
                     </div>
                     
                     <div class="alert alert-info">
-                        <h6><i class="bi bi-info-circle"></i> Indexing Process</h6>
-                        <p class="mb-0">The document will be processed in the following stages:</p>
+                        <h6><i class="bi bi-info-circle"></i> Proceso de Indexación</h6>
+                        <p class="mb-0">El documento será procesado en las siguientes etapas:</p>
                         <ol class="mb-0 mt-2">
-                            <li><strong>Parsing:</strong> Text, image and table extraction with Nemotron</li>
-                            <li><strong>Chunking:</strong> Document division into chunks</li>
-                            <li><strong>Embeddings:</strong> Vector generation with BGE-M3</li>
-                            <li><strong>Indexing:</strong> Storage in ChromaDB</li>
+                            <li><strong>Parsing:</strong> Extracción de texto, imágenes y tablas con Nemotron</li>
+                            <li><strong>Chunking:</strong> División del documento en fragmentos</li>
+                            <li><strong>Embeddings:</strong> Generación de vectores con BGE-M3</li>
+                            <li><strong>Indexación:</strong> Almacenamiento en ChromaDB</li>
                         </ol>
-                        <p class="mt-2 mb-0"><small>This process may take several minutes depending on document size.</small></p>
+                        <p class="mt-2 mb-0"><small>Este proceso puede tardar varios minutos dependiendo del tamaño del documento.</small></p>
                     </div>
                     
                     <div class="d-flex justify-content-between">
                         <a href="{% url 'admin_panel:document_list' %}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Cancel
+                            <i class="bi bi-arrow-left"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-upload"></i> Upload and Process
+                            <i class="bi bi-upload"></i> Subir y Procesar
                         </button>
                     </div>
                 </form>

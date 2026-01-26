@@ -1,0 +1,128 @@
+\chapter{Introducción}
+%================================================
+
+\section{Contexto y Motivación}
+
+La información técnica en las organizaciones suele estar dispersa en múltiples documentos PDF, manuales, especificaciones técnicas, y reportes. Localizar información específica en estos documentos requiere tiempo y esfuerzo considerable, especialmente cuando se trabaja con grandes volúmenes de documentación.
+
+Los sistemas tradicionales de búsqueda basados en palabras clave tienen limitaciones significativas: no comprenden sinónimos, no capturan el significado semántico de las consultas, y frecuentemente devuelven resultados irrelevantes cuando los términos de búsqueda no coinciden exactamente con el texto del documento.
+
+Este proyecto aborda estos desafíos implementando un sistema RAG (Retrieval-Augmented Generation) que combina búsqueda semántica con generación de lenguaje natural, permitiendo a los usuarios consultar documentos técnicos mediante preguntas en lenguaje natural y recibir respuestas contextuales precisas con referencias visuales automáticas.
+
+\section{Objetivos del Sistema}
+
+El objetivo principal de este proyecto es desarrollar una aplicación web completa que automatice el procesamiento de documentos técnicos y proporcione una interfaz conversacional inteligente para consultar la información indexada.
+
+Los objetivos específicos incluyen:
+
+\begin{itemize}
+    \item \textbf{Procesamiento automatizado}: Implementar un pipeline que extraiga texto, tablas e imágenes de documentos complejos sin intervención manual
+    
+    \item \textbf{Búsqueda semántica}: Permitir búsquedas que comprendan el significado de las consultas, no solo palabras clave exactas
+    
+    \item \textbf{Respuestas contextuales}: Generar respuestas en lenguaje natural basadas en el contenido de los documentos indexados
+    
+    \item \textbf{Trazabilidad}: Mantener referencias exactas a las fuentes de información utilizadas en cada respuesta
+    
+    \item \textbf{Soporte multilingüe}: Funcionar correctamente con documentos y consultas en español e inglés
+    
+    \item \textbf{Arquitectura modular}: Diseñar el sistema de forma que cada componente pueda evolucionar independientemente
+\end{itemize}
+
+\section{Alcance del Proyecto}
+
+El proyecto implementa un sistema completo que cubre todo el ciclo de vida del procesamiento de documentos:
+
+\begin{enumerate}
+    \item \textbf{Ingesta}: Los administradores suben documentos a través de una interfaz web
+    
+    \item \textbf{Procesamiento}: El sistema extrae automáticamente texto, tablas e imágenes, divide el contenido en fragmentos semánticos (chunks), genera representaciones vectoriales (embeddings), e indexa todo en una base de datos vectorial
+    
+    \item \textbf{Consulta}: Los usuarios hacen preguntas en lenguaje natural a través de un chatbot
+    
+    \item \textbf{Respuesta}: El sistema recupera los fragmentos más relevantes, construye un contexto enriquecido, y genera una respuesta coherente mediante un modelo de lenguaje
+\end{enumerate}
+
+El sistema está diseñado para documentos técnicos complejos que contienen texto, tablas y diagramas, siendo especialmente útil para manuales técnicos, especificaciones de ingeniería, y documentación científica.
+
+\section{Tecnologías Principales}
+
+El proyecto utiliza tecnologías de código abierto de última generación:
+
+\begin{itemize}
+    \item \textbf{Django}: Framework web Python para el backend y las interfaces de administración
+    
+    \item \textbf{Nemotron Parse v1.1}: Modelo de IA de NVIDIA para parsing avanzado de documentos
+    
+    \item \textbf{BGE-M3}: Modelo de embeddings multilingüe de BAAI para búsqueda semántica
+    
+    \item \textbf{ChromaDB}: Base de datos vectorial optimizada para búsquedas por similitud
+    
+    \item \textbf{Ollama}: Servidor local para modelos de lenguaje (LLM)
+    
+    \item \textbf{Celery + Redis}: Sistema de tareas asíncronas para procesamiento en background
+    
+    \item \textbf{CUDA}: Aceleración por GPU para los modelos de deep learning
+\end{itemize}
+
+\section{Decisiones de Diseño: Implementación Manual vs LangChain}
+
+Una decisión arquitectónica fundamental del proyecto fue implementar el pipeline RAG de manera manual utilizando los componentes individuales directamente, en lugar de usar frameworks de alto nivel como LangChain. Esta decisión merece una explicación detallada dado el estado actual del ecosistema de IA.
+
+\subsection{¿Qué es LangChain?}
+
+LangChain es un framework popular que proporciona abstracciones de alto nivel para construir aplicaciones con modelos de lenguaje. Incluye loaders de documentos, text splitters, integraciones con vector stores, gestión de prompts, cadenas de procesamiento, y agentes autónomos. En teoría, LangChain podría haber simplificado significativamente el desarrollo de este proyecto.
+
+\subsection{Razones para la Implementación Manual}
+
+\textbf{Control total sobre el pipeline}: Cada etapa del procesamiento (parsing, chunking, embedding, indexing) está implementada exactamente según nuestras necesidades. Podemos optimizar cada paso sin estar limitados por las abstracciones de un framework. Por ejemplo, la estrategia de chunking con overlap personalizado y metadatos enriquecidos está ajustada específicamente para documentos técnicos con tablas e imágenes.
+
+\textbf{Comprensión profunda del sistema}: Implementar cada componente manualmente garantiza que el equipo de desarrollo entiende exactamente qué hace cada pieza del sistema. Esta comprensión es crucial para debugging, optimización, y mantenimiento a largo plazo. No hay "magia negra" ni cajas negras en el código.
+
+\textbf{Dependencias mínimas}: LangChain es un framework grande con muchas dependencias transitivas. Al usar solo las librerías necesarias (sentence-transformers, chromadb, requests), el proyecto mantiene un footprint pequeño y predecible. Esto facilita el despliegue, reduce la superficie de ataque de seguridad, y minimiza conflictos de versiones.
+
+\textbf{Rendimiento optimizado}: La implementación manual permite optimizaciones específicas que serían difíciles con abstracciones genéricas. Por ejemplo, el batch processing de embeddings está optimizado para nuestros tamaños de lote específicos, y el post-procesamiento que inyecta tablas e imágenes está integrado directamente en el flujo sin overhead adicional.
+
+\textbf{Estabilidad y versionado}: LangChain evoluciona rápidamente con cambios frecuentes en sus APIs. Una implementación manual usando librerías maduras y estables (como sentence-transformers y chromadb) proporciona mayor estabilidad a largo plazo. Las actualizaciones son controladas y no hay riesgo de breaking changes inesperados.
+
+\textbf{Incompatibilidad con Nemotron Parse}: La razón más determinante para no usar LangChain fue la elección de Nemotron Parse v1.1 como motor de parsing. Durante el análisis de alternativas, se evaluaron las herramientas de parsing más comunes integradas en LangChain: PyPDF2, PDFMiner, pdfplumber, y Unstructured.io. Todas estas herramientas mostraron limitaciones significativas en el procesamiento de documentos técnicos complejos, especialmente en dos áreas críticas:
+
+\begin{itemize}
+    \item \textbf{Tablas grandes y complejas}: Las herramientas tradicionales fallan frecuentemente en la extracción de tablas con múltiples columnas, celdas fusionadas, o tablas que se extienden a lo largo de varias páginas. La precisión en la reconstrucción de la estructura tabular es deficiente.
+    
+    \item \textbf{Ecuaciones matemáticas}: Fórmulas y ecuaciones complejas se extraen como texto corrupto o símbolos sin sentido. La notación matemática LaTeX o MathML no se preserva correctamente.
+\end{itemize}
+
+Tras realizar diversos experimentos comparativos con documentos técnicos representativos, se observó que Nemotron Parse v1.1 ofrecía un nivel de extracción de contenidos muy superior a estas alternativas en ambas áreas críticas. Sin embargo, Nemotron no tiene integración nativa con LangChain, y crear un wrapper personalizado para LangChain habría resultado en:
+
+\begin{enumerate}
+    \item Pérdida de los metadatos estructurados que Nemotron proporciona (bounding boxes, relaciones espaciales)
+    \item Necesidad de implementar lógica custom de todos modos, eliminando las ventajas de usar LangChain
+    \item Overhead adicional sin beneficio real, ya que los document loaders de LangChain no están diseñados para la riqueza estructural que Nemotron proporciona
+\end{enumerate}
+
+La superioridad de Nemotron en el procesamiento de documentos técnicos fue el factor decisivo que condujo a una implementación completamente manual del pipeline.
+
+\textbf{Requisitos específicos adicionales}: Más allá del parsing, el proyecto tiene otros requisitos que no encajan en los patrones estándar de LangChain: inyección automática de contenido visual en respuestas, query expansion con sinónimos específicos del dominio, y integración profunda con el ORM de Django para trazabilidad completa.
+
+\textbf{Objetivo educativo}: Este proyecto también tiene un componente educativo. Implementar el pipeline manualmente proporciona una comprensión profunda de cómo funcionan los sistemas RAG, desde la generación de embeddings hasta la construcción de prompts para LLMs. Esta comprensión es valiosa y trasladable a otros proyectos.
+
+\subsection{Conclusión}
+
+La decisión de implementar manualmente en lugar de usar LangChain fue deliberada y fundamentada en los requisitos específicos del proyecto: control total, rendimiento optimizado, dependencias mínimas, y comprensión profunda del sistema. Esta arquitectura proporciona exactamente lo que necesitamos sin el overhead de un framework genérico.
+
+No obstante, reconocemos que esta decisión tiene un costo: más código que mantener y algunas funcionalidades que debimos implementar nosotros mismos. Para este proyecto, consideramos que los beneficios superan ampliamente los costos.
+
+\section{Estructura de la Memoria}
+
+Esta memoria se organiza en cuatro capítulos:
+
+\begin{itemize}
+    \item \textbf{Capítulo 1 - Introducción}: Presenta el contexto, objetivos, y alcance del proyecto
+    
+    \item \textbf{Capítulo 2 - Arquitectura General}: Describe la arquitectura del sistema y cada uno de los módulos que lo componen
+    
+    \item \textbf{Capítulo 3 - Aplicación Web}: Documenta las interfaces de usuario (panel de administración y chatbot) y su funcionalidad
+    
+    \item \textbf{Capítulo 4 - Conclusiones}: Resume los logros del proyecto y propone direcciones futuras
+\end{itemize}

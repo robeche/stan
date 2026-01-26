@@ -1,0 +1,337 @@
+\chapter{Aplicación Web}
+%================================================
+
+\section{Visión General}
+
+La aplicación web proporciona dos interfaces principales: el panel de administración para gestionar documentos, y el chatbot para consultas en lenguaje natural. Ambas interfaces están construidas con Django y comparten la misma base de datos, pero están diseñadas para diferentes tipos de usuarios y casos de uso.
+
+El panel de administración requiere autenticación y está orientado a usuarios técnicos que necesitan supervisar el procesamiento de documentos y validar resultados. El chatbot es una interfaz pública sin autenticación, diseñada para usuarios finales que simplemente quieren hacer preguntas y obtener respuestas.
+
+\section{Panel de Administración}
+
+\subsection{Propósito}
+
+El panel de administración es la herramienta de control para gestionar todo el ciclo de vida de los documentos, desde la carga inicial hasta la indexación completa en ChromaDB. Proporciona visibilidad completa sobre el estado del procesamiento, el contenido extraído, y los logs del sistema.
+
+\subsection{Funcionalidades Principales}
+
+\subsubsection{Dashboard}
+
+La página principal muestra un resumen de todos los documentos en el sistema con su estado actual:
+
+\begin{itemize}
+    \item \textbf{Lista de documentos}: Título, fecha de subida, estado, progreso
+    \item \textbf{Indicadores de estado}: Pending, Processing, Completed, Failed
+    \item \textbf{Estadísticas}: Total de páginas, chunks, imágenes, tablas por documento
+    \item \textbf{Filtros}: Por estado, fecha, título
+    \item \textbf{Ordenación}: Por fecha, título, progreso
+\end{itemize}
+
+El dashboard se actualiza automáticamente cada 5 segundos cuando hay documentos en procesamiento, proporcionando feedback en tiempo real sin necesidad de recargar la página manualmente.
+
+\subsubsection{Subida de Documentos}
+
+El formulario de subida permite cargar documentos y lanzar su procesamiento:
+
+\begin{enumerate}
+    \item El administrador selecciona un archivo (PDF, DOCX, DOC, TXT, MD)
+    \item Ingresa un título descriptivo para el documento
+    \item Presiona "Procesar Documento"
+    \item Django crea el registro en la base de datos
+    \item Se lanza una tarea de Celery en background
+    \item El administrador recibe confirmación inmediata
+    \item El progreso se puede monitorizar desde el dashboard
+\end{enumerate}
+
+La validación incluye verificación de tipo de archivo, tamaño máximo (100 MB por defecto), y unicidad del título.
+
+\subsubsection{Vista de Detalle}
+
+Al hacer clic en un documento del dashboard, se accede a la vista de detalle organizada en pestañas:
+
+\textbf{Pestaña Información General}:
+\begin{itemize}
+    \item Metadatos del documento (título, archivo original, fecha)
+    \item Estado de procesamiento con indicador visual
+    \item Barra de progreso animada
+    \item Estadísticas completas (páginas, chunks, imágenes, tablas)
+    \item Botón de reprocesamiento (para documentos completados o fallidos)
+\end{itemize}
+
+\textbf{Pestaña Páginas}:
+\begin{itemize}
+    \item Vista previa de cada página procesada
+    \item Texto extraído con estructura Markdown
+    \item Anotaciones de bounding boxes para imágenes y tablas
+    \item Navegación entre páginas
+\end{itemize}
+
+\textbf{Pestaña Imágenes}:
+\begin{itemize}
+    \item Galería de todas las imágenes extraídas
+    \item Miniatura + vista ampliada al hacer clic
+    \item Metadatos: página de origen, coordenadas, tamaño
+    \item Descarga individual de imágenes
+\end{itemize}
+
+\textbf{Pestaña Tablas}:
+\begin{itemize}
+    \item Lista de todas las tablas extraídas
+    \item Renderizado HTML de la estructura de la tabla
+    \item Metadatos: página de origen, número de filas/columnas
+    \item Exportación a CSV
+\end{itemize}
+
+\textbf{Pestaña Chunks}:
+\begin{itemize}
+    \item Lista de todos los fragmentos generados
+    \item Vista previa del contenido de cada chunk (200 caracteres)
+    \item Vista expandible para ver contenido completo
+    \item Metadatos: índice, dimensión del embedding, indexado en ChromaDB
+    \item Indicador visual de indexación exitosa
+\end{itemize}
+
+\textbf{Pestaña Logs}:
+\begin{itemize}
+    \item Historial cronológico de eventos de procesamiento
+    \item Nivel de log (INFO, WARNING, ERROR)
+    \item Timestamp exacto de cada evento
+    \item Mensajes detallados para debugging
+    \item Filtro por nivel de log
+\end{itemize}
+
+\subsection{Modelos de Datos}
+
+El panel de administración utiliza los siguientes modelos Django:
+
+\textbf{Document}: Registro principal con metadatos, estado, y estadísticas
+
+\textbf{Page}: Representa cada página procesada del documento con su contenido en Markdown
+
+\textbf{Image}: Imágenes extraídas con coordenadas y archivo guardado
+
+\textbf{Table}: Tablas identificadas con estructura JSON y metadatos
+
+\textbf{Chunk}: Fragmentos semánticos con embedding y referencia a ChromaDB
+
+\textbf{ProcessingLog}: Logs de cada etapa del procesamiento para trazabilidad
+
+\subsection{Tareas Asíncronas}
+
+El procesamiento de documentos se gestiona mediante tareas de Celery:
+
+\begin{lstlisting}[language=Python]
+@shared_task(bind=True)
+def process_document_task(self, document_id):
+    doc = Document.objects.get(id=document_id)
+    
+    # Etapa 1: Parsing
+    parse_result = parse_with_nemotron(doc.file.path)
+    save_pages_images_tables(doc, parse_result)
+    update_progress(doc, 25, 'parsing')
+    
+    # Etapa 2: Chunking
+    chunks = generate_chunks(parse_result)
+    save_chunks(doc, chunks)
+    update_progress(doc, 50, 'chunking')
+    
+    # Etapa 3: Embeddings
+    embeddings = generate_embeddings_batch(chunks)
+    update_chunks_with_embeddings(chunks, embeddings)
+    update_progress(doc, 75, 'embedding')
+    
+    # Etapa 4: Indexing
+    index_in_chromadb(doc, chunks, embeddings)
+    update_progress(doc, 100, 'completed')
+\end{lstlisting}
+
+\section{Chatbot}
+
+\subsection{Propósito}
+
+El chatbot es la interfaz principal de consulta para usuarios finales. Proporciona una experiencia conversacional simple donde los usuarios escriben preguntas en lenguaje natural y reciben respuestas contextuales basadas en los documentos indexados.
+
+\subsection{Funcionalidades Principales}
+
+\subsubsection{Interfaz de Chat}
+
+La interfaz sigue el patrón familiar de aplicaciones de mensajería:
+
+\begin{itemize}
+    \item \textbf{Área de mensajes}: Muestra el historial de la conversación con diferenciación visual entre mensajes del usuario y del asistente
+    
+    \item \textbf{Campo de entrada}: Texto libre con botón de envío y soporte para Enter
+    
+    \item \textbf{Indicador de escritura}: Animación mientras el sistema genera la respuesta
+    
+    \item \textbf{Scroll automático}: Se desplaza automáticamente al último mensaje
+    
+    \item \textbf{Botón "Nueva conversación"}: Limpia el historial y crea una sesión nueva
+\end{itemize}
+
+\subsubsection{Respuestas Enriquecidas}
+
+Las respuestas del asistente incluyen contenido enriquecido:
+
+\textbf{Texto formateado}:
+\begin{itemize}
+    \item Renderizado HTML de markdown
+    \item Negritas, cursivas, listas
+    \item Código inline y bloques de código
+\end{itemize}
+
+\textbf{Tablas embebidas}:
+\begin{itemize}
+    \item Tablas HTML completamente formateadas
+    \item Inyectadas automáticamente cuando se mencionan en el contexto
+    \item Estilizadas con Bootstrap
+\end{itemize}
+
+\textbf{Imágenes embebidas}:
+\begin{itemize}
+    \item Imágenes relevantes insertadas en la respuesta
+    \item Leyendas automáticas con referencia al documento
+    \item Clickeable para ver en tamaño completo
+\end{itemize}
+
+\textbf{Fuentes citadas}:
+\begin{itemize}
+    \item Lista de chunks utilizados como contexto
+    \item Título del documento de origen
+    \item Índice del chunk
+    \item Clickeable para ver el chunk completo en un modal
+\end{itemize}
+
+\subsubsection{Query Expansion}
+
+Durante la fase de testeo del sistema se observó una carencia importante: el sistema fallaba en comprender ciertas preguntas cuando los usuarios empleaban terminología diferente a la utilizada en los documentos indexados. Por ejemplo, una pregunta sobre "diámetro del rotor" podría no recuperar chunks relevantes que utilizaran términos como "longitud del rotor" o "tamaño del rotor", a pesar de referirse al mismo concepto.
+
+Para abordar este problema se implementó una técnica de query expansion basada en un diccionario de sinónimos específicos del dominio:
+
+\begin{lstlisting}[language=Python]
+SYNONYM_MAP = {
+    'diameter': 'diameter length size',
+    'weight': 'weight mass',
+    'speed': 'speed velocity',
+    # ...
+}
+
+def expand_query(query):
+    expanded = query
+    for term, synonyms in SYNONYM_MAP.items():
+        if term in query.lower():
+            expanded += ' ' + synonyms
+    return expanded
+\end{lstlisting}
+
+Cuando el usuario pregunta "What is the rotor diameter?", el sistema expande la consulta a "What is the rotor diameter? diameter length size", aumentando significativamente las probabilidades de recuperar chunks relevantes incluso si usan terminología diferente.
+
+Esta implementación actual es manual y puede irse mejorando y ampliando conforme se identifiquen nuevos términos problemáticos durante el uso del sistema. Como trabajo futuro, se podría mejorar esta técnica utilizando un LLM intermediario que analice y expanda automáticamente las consultas con sinónimos contextuales, eliminando la necesidad de mantener un diccionario manual.
+
+\subsubsection{Modal de Chunks}
+
+Al hacer clic en una fuente citada, se abre un modal que muestra:
+
+\begin{itemize}
+    \item Contenido completo del chunk
+    \item Documento de origen
+    \item Índice del chunk en el documento
+    \item Dimensión del embedding
+    \item Estado de indexación en ChromaDB
+    \item Metadatos adicionales
+\end{itemize}
+
+Este feature permite a los usuarios verificar exactamente qué información utilizó el sistema para generar la respuesta, proporcionando transparencia y trazabilidad.
+
+\subsection{Modelos de Datos}
+
+\textbf{Conversation}: Representa una sesión de chat con identificador único
+
+\textbf{Message}: Cada mensaje individual (usuario o asistente) con timestamp y referencias a chunks utilizados
+
+\subsection{Lógica de Generación de Respuestas}
+
+El proceso de respuesta sigue estos pasos:
+
+\begin{lstlisting}[language=Python]
+def generate_response(user_query, conversation_id):
+    # 1. Expandir query con sinonimos
+    expanded_query = expand_query(user_query)
+    
+    # 2. Generar embedding de la query
+    query_embedding = embedding_generator.generate_single_embedding(
+        expanded_query
+    )
+    
+    # 3. Buscar en ChromaDB
+    results = vector_store.query(
+        query_embedding=query_embedding,
+        n_results=10
+    )
+    
+    # 4. Recuperar chunks completos
+    chunk_ids = extract_chunk_ids(results)
+    chunks = Chunk.objects.filter(chunk_id__in=chunk_ids)
+    
+    # 5. Construir contexto con tablas e imagenes
+    context = build_enriched_context(chunks)
+    
+    # 6. Crear prompt estructurado
+    prompt = create_llm_prompt(user_query, context)
+    
+    # 7. Llamar a Ollama
+    llm_response = call_ollama_api(prompt)
+    
+    # 8. Post-procesar respuesta
+    final_response = inject_media_references(
+        llm_response, 
+        chunks
+    )
+    
+    # 9. Guardar en base de datos
+    save_message(conversation_id, user_query, final_response, chunks)
+    
+    return final_response, chunks
+\end{lstlisting}
+
+\subsection{Prompt Engineering}
+
+El prompt enviado a Ollama tiene una estructura cuidadosamente diseñada:
+
+\begin{lstlisting}
+You are a helpful technical assistant. Answer questions based 
+ONLY on the provided context. If the information is not in the 
+context, say so clearly.
+
+CONTEXT:
+[Aqui se insertan los chunks recuperados con formato especial]
+
+Available tables/images will be automatically embedded in your 
+response when you reference them.
+
+USER QUESTION: [pregunta del usuario]
+
+INSTRUCTIONS:
+- Answer in the same language as the question
+- Be precise and technical when appropriate
+- Cite sources when possible
+- If information is not in context, say so
+- Reference tables/images by their IDs when relevant
+\end{lstlisting}
+
+Esta estructura garantiza que el LLM:
+\begin{itemize}
+    \item Responda solo con información del contexto
+    \item Mantenga el idioma de la pregunta
+    \item Sea técnicamente preciso
+    \item Cite fuentes cuando sea posible
+    \item Reconozca cuando no tiene información suficiente
+\end{itemize}
+
+\section{Navegación y UX}
+
+Ambas interfaces comparten una barra de navegación superior que permite cambiar entre el chatbot y el panel de administración. Esta barra es fija y siempre visible, facilitando la navegación fluida entre ambas interfaces.
+
+La aplicación utiliza Bootstrap 5 para garantizar diseño responsive que funciona en desktop, tablet y móvil. Los estilos son consistentes en toda la aplicación, proporcionando una experiencia de usuario coherente.
+
+Las operaciones asíncronas (como el procesamiento de documentos o la generación de respuestas) muestran indicadores de carga apropiados, manteniendo al usuario informado del estado del sistema en todo momento.

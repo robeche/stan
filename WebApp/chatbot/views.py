@@ -103,7 +103,8 @@ def send_message(request):
                 'created_at': assistant_msg.created_at.isoformat(),
                 'sources': [
                     {
-                        'chunk_id': chunk.id,
+                        'chunk_id': chunk.chunk_id,
+                        'chunk_db_id': chunk.id,
                         'document_name': chunk.document.title,
                         'preview': chunk.content[:200]
                     }
@@ -153,10 +154,16 @@ def generate_response(query):
         )
         
         # Query vector store - retrieve more chunks for better coverage
-        results = vector_store.query(
-            query_embedding=query_embedding,
-            n_results=10  # Increased from 5 to capture more potential matches
-        )
+        try:
+            results = vector_store.query(
+                query_embedding=query_embedding,
+                n_results=10  # Increased from 5 to capture more potential matches
+            )
+        except Exception as e:
+            # Handle ChromaDB errors (empty collection, corrupted index, etc.)
+            print(f"ERROR: ChromaDB query failed: {str(e)}")
+            print(f"This usually means the database is empty or needs re-indexing")
+            results = None
         
         # Extract chunk IDs from results (ChromaDB returns them in metadata)
         chunk_ids = []
@@ -169,11 +176,20 @@ def generate_response(query):
         # Get chunk objects from database
         chunks = []
         if chunk_ids:
-            chunks = list(Chunk.objects.filter(chunk_id__in=chunk_ids))
-            print(f"DEBUG: Found {len(chunks)} chunks in Django DB")
+            chunks_raw = list(Chunk.objects.filter(chunk_id__in=chunk_ids))
+            print(f"DEBUG: Found {len(chunks_raw)} chunks in Django DB")
+            
+            # Filter out very small chunks (less than 100 characters)
+            chunks_before_filter = len(chunks_raw)
+            chunks = [chunk for chunk in chunks_raw if len(chunk.content) >= 100]
+            chunks_filtered = chunks_before_filter - len(chunks)
+            
+            if chunks_filtered > 0:
+                print(f"DEBUG: Filtered out {chunks_filtered} chunks with less than 100 characters")
+            
             print(f"DEBUG: Query: '{query}' -> Expanded: '{query_expanded}'")
             for i, chunk in enumerate(chunks[:5], 1):
-                print(f"DEBUG: Chunk {i} ({chunk.chunk_id}): {chunk.content[:100]}...")
+                print(f"DEBUG: Chunk {i} ({chunk.chunk_id}, {len(chunk.content)} chars): {chunk.content[:100]}...")
         
         # Build context from retrieved chunks
         if chunks:
@@ -200,8 +216,11 @@ def generate_response(query):
                             'id': table.id,
                             'url': table.table_image.url,
                             'caption': caption,
-                            'reference': f"TABLA_{table.id}"
+                            'reference': f"TABLA_{table.id}",
+                            'filename': os.path.basename(table.table_path)
                         })
+                        
+                        print(f"DEBUG: Table found - ID: {table.id}, Caption: '{caption}', Filename: '{os.path.basename(table.table_path)}')")
                 
                 # Images can be page-specific
                 if 'page' in chunk.metadata:
@@ -224,35 +243,44 @@ def generate_response(query):
                                 'reference': f"IMAGEN_{img.id}"
                             })
             
+            # Use top 2 chunks for more focused context
             context = "\n\n".join([
                 f"Documento: {chunk.document.title}\n{chunk.content}" 
-                for chunk in chunks[:3]  # Use top 3 chunks
+                for chunk in chunks[:10]
             ])
             
             # Add tables/images references to context
+            available_refs = []
             if tables_info:
                 context += "\n\nAvailable tables:\n"
                 context += "\n".join([f"- {t['reference']}: {t['caption']}" for t in tables_info])
-                print(f"DEBUG: Tables info: {tables_info}")
+                available_refs.extend([t['reference'] for t in tables_info])
+                print(f"DEBUG: Tables available: {[t['reference'] for t in tables_info]}")
             if images_info:
                 context += "\n\nAvailable images:\n"
                 context += "\n".join([f"- {i['reference']}: {i['caption']}" for i in images_info])
-                print(f"DEBUG: Images info: {images_info}")
+                available_refs.extend([i['reference'] for i in images_info])
+                print(f"DEBUG: Images available: {[i['reference'] for i in images_info]}")
             
             # Build prompt for Ollama
-            prompt = f"""You are an expert assistant that answers questions based on technical documents.
+            refs_instruction = ""
+            if available_refs:
+                refs_instruction = f"\n7. When referencing tables or images, use ONLY these exact references: {', '.join(available_refs)}. DO NOT invent other reference numbers."
+            
+            prompt = f"""You are a technical documentation assistant. Answer the user's question based on the provided context.
 
 Document context:
 {context}
 
 User's question: {query}
 
-Instructions:
-- Answer clearly and concisely
-- Use ONLY the information provided in the context
-- If the information is not in the context, state it clearly
-- Cite the document when relevant
-- IMPORTANT: If you mention a table or image, include its EXACT reference as listed (example: TABLE_15 or IMAGE_8). DO NOT use alternative descriptions.
+INSTRUCTIONS:
+1. Answer using the information from the context above
+2. The context may contain tables in LaTeX format (\\begin{{tabular}}) - read them carefully
+3. If the answer is in a list or table, extract and present it clearly
+4. If the exact information is not in the context, say: "I don't have that specific information in the available documents."
+5. Reference the document name when relevant
+6. For tables/images, ONLY use the references listed in "Available tables" or "Available images" above{refs_instruction}
 
 Response:"""
             
@@ -265,8 +293,9 @@ Response:"""
                         "prompt": prompt,
                         "stream": False,
                         "options": {
-                            "temperature": OLLAMA_CONFIG.get('TEMPERATURE', 0.7),
-                            "top_p": OLLAMA_CONFIG.get('TOP_P', 0.9),
+                            "temperature": 0.3,  # Lower temperature for more precise, grounded answers
+                            "top_p": 0.9,
+                            "num_ctx": 8192,  # Increase context window
                         }
                     },
                     timeout=OLLAMA_CONFIG.get('TIMEOUT', 60)
@@ -295,16 +324,43 @@ Response:"""
                     
                     # Build a map of caption keywords to images/tables
                     for table in tables_info:
-                        # Extract patterns like "1-1" from caption
-                        patterns = re.findall(r'\d+-\d+', table['caption'])
-                        for pattern in patterns:
-                            # Look for this pattern in the answer
-                            regex = re.compile(rf'\b(tabla|table|figura|figure)\s+{re.escape(pattern)}\b', re.IGNORECASE)
+                        # Extract patterns like "1-1" from caption AND filename
+                        patterns = re.findall(r'\d+[-‑]\d+', table['caption'])
+                        filename_patterns = re.findall(r'\d+[-‑]\d+', table['filename'])
+                        all_patterns = set(patterns + filename_patterns)
+                        matched = False
+                        
+                        for pattern in all_patterns:
+                            # Normalize hyphens (both regular - and en-dash ‑)
+                            pattern_normalized = pattern.replace('‑', '-')
+                            # Look for this pattern in the answer with flexible hyphen matching
+                            regex = re.compile(rf'\b(tabla|table)\s+{re.escape(pattern_normalized).replace("-", "[-‑]")}\b', re.IGNORECASE)
                             if regex.search(answer):
-                                img_html = f'<div class="embedded-table"><img src="{table["url"]}" alt="{table["caption"]}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;"><div style="font-size: 0.85rem; color: #666; font-style: italic;">{table["caption"]}</div></div>'
-                                # Append at the end to avoid breaking the text
-                                if img_html not in answer:
-                                    answer += '\n\n' + img_html
+                                matched = True
+                                print(f"DEBUG: MATCHED table by pattern '{pattern}' in answer")
+                                break
+                        
+                        # Also search in the answer for general table references if not matched yet
+                        if not matched:
+                            # Look for patterns like "Table 1-1" or "tabla 1‑1" directly in the answer
+                            table_refs = re.findall(r'\b(?:tabla|table)\s+(\d+[-‑]\d+)\b', answer, re.IGNORECASE)
+                            for ref in table_refs:
+                                # Check if this table contains this reference in caption or filename
+                                ref_normalized = ref.replace('‑', '-')
+                                caption_normalized = table['caption'].replace('‑', '-')
+                                filename_normalized = table['filename'].replace('‑', '-')
+                                
+                                if ref_normalized in caption_normalized or ref_normalized in filename_normalized:
+                                    matched = True
+                                    print(f"DEBUG: MATCHED table by reference '{ref}' in caption/filename")
+                                    break
+                        
+                        if matched:
+                            img_html = f'<div class="embedded-table"><img src="{table["url"]}" alt="{table["caption"]}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;"><div style="font-size: 0.85rem; color: #666; font-style: italic;">{table["caption"]}</div></div>'
+                            # Append at the end to avoid breaking the text
+                            if img_html not in answer:
+                                answer += '\n\n' + img_html
+                                print(f"DEBUG: INSERTED table '{table['caption']}' into answer")
                     
                     for img in images_info:
                         # Try to match patterns in caption or just look for generic figure mentions
@@ -338,7 +394,46 @@ Response:"""
             except Exception as e:
                 return f"Error calling Ollama: {str(e)}", chunks
         else:
-            return "I couldn't find relevant information in the database to answer your query.", []
+            # No chunks found - still ask the LLM but without context
+            print(f"WARNING: No chunks found for query: '{query}'")
+            
+            prompt = f"""You are an expert assistant for technical documentation.
+
+User's question: {query}
+
+Unfortunately, I could not find specific information in the available documents to answer this question.
+
+Please respond in one of these ways:
+1. If this is a general question you can answer based on your knowledge, provide a helpful general answer and clearly state it's not from the specific documents.
+2. If it requires specific technical details from documents, explain that you don't have access to this information in the current database.
+3. Suggest what type of documentation or information would be needed to answer this question.
+
+Response:"""
+            
+            try:
+                response = requests.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": OLLAMA_CONFIG.get('TEMPERATURE', 0.7),
+                            "top_p": OLLAMA_CONFIG.get('TOP_P', 0.9),
+                        }
+                    },
+                    timeout=OLLAMA_CONFIG.get('TIMEOUT', 60)
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    answer = result.get('response', '').strip()
+                    return answer, []
+                else:
+                    return f"No encontré información relevante en la base de datos y hubo un error al generar una respuesta: {response.status_code}", []
+                    
+            except Exception as e:
+                return f"No encontré información relevante en la base de datos. Error al consultar el modelo: {str(e)}", []
         
     except Exception as e:
         return f"Sorry, an error occurred while processing your query: {str(e)}", []
@@ -357,3 +452,35 @@ def new_conversation(request):
         'success': True,
         'message': 'New conversation started'
     })
+
+
+@require_http_methods(["GET"])
+def get_chunk_details(request, chunk_id):
+    """
+    API endpoint to get chunk details for modal display
+    """
+    try:
+        chunk = Chunk.objects.get(id=chunk_id)
+        
+        return JsonResponse({
+            'success': True,
+            'chunk': {
+                'chunk_id': chunk.chunk_id,
+                'content': chunk.content,
+                'chunk_index': chunk.chunk_index,
+                'document_title': chunk.document.title,
+                'embedding_dimension': chunk.embedding_dimension,
+                'indexed_in_chromadb': chunk.indexed_in_chromadb,
+                'metadata': chunk.metadata,
+            }
+        })
+    except Chunk.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Chunk not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

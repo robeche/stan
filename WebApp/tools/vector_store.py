@@ -83,6 +83,27 @@ class VectorStore:
             where_document=where_document
         )
     
+    def delete_by_ids(self, ids):
+        """
+        Delete documents by their IDs.
+        
+        Args:
+            ids: List of document IDs to delete
+        
+        Returns:
+            bool: Success status
+        """
+        try:
+            if not ids:
+                return True
+            
+            self.store.collection.delete(ids=ids)
+            print(f"✓ Deleted {len(ids)} documents from ChromaDB")
+            return True
+        except Exception as e:
+            print(f"❌ Error deleting documents from ChromaDB: {e}")
+            return False
+    
     def get_collection(self):
         """Get the underlying ChromaDB collection."""
         return self.store.collection

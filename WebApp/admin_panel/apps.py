@@ -5,3 +5,7 @@ class AdminPanelConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'admin_panel'
     verbose_name = 'Panel de Administración RAG'
+    
+    def ready(self):
+        """Import signals when app is ready"""
+        import admin_panel.signals
